@@ -57,6 +57,7 @@ struct GaugePopoverView: View {
           )
       }
       .buttonStyle(QuietIconButtonStyle(isHovered: isRefreshHovered))
+      .focusEffectDisabled()
       .onHover { isRefreshHovered = $0 }
       .disabled(viewModel.state.isLoading)
       .help("刷新额度")

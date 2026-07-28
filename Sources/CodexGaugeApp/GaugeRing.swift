@@ -1,3 +1,4 @@
+import AppKit
 import CodexGaugeCore
 import SwiftUI
 
@@ -52,23 +53,125 @@ struct GaugeRing: View {
 }
 
 struct MenuBarGaugeIcon: View {
-  let progress: Double
+  let remainingPercentage: Double?
   let state: QuotaProviderState
 
   private var percentageText: String {
-    guard state.snapshot != nil else { return "--" }
-    return "\(Int(progress.rounded()))%"
+    guard let remainingPercentage else { return "--" }
+    return "\(Int(remainingPercentage.rounded()))%"
+  }
+
+  private var progress: Double? {
+    remainingPercentage.map { min(max($0 / 100, 0), 1) }
+  }
+
+  private var showsError: Bool {
+    guard remainingPercentage == nil else { return false }
+
+    return switch state {
+    case .signedOut, .unsupported, .unavailable, .failed:
+      true
+    case .idle, .loading, .available:
+      false
+    }
   }
 
   var body: some View {
     HStack(spacing: 3) {
-      Image(systemName: "gauge.with.dots.needle.50percent")
-        .font(.system(size: 12, weight: .semibold))
+      Image(
+        nsImage: MenuBarPromptRingImage.make(
+          progress: progress,
+          showsError: showsError
+        )
+      )
+      .renderingMode(.template)
+      .frame(width: 18, height: 18)
+      .accessibilityHidden(true)
 
       Text(percentageText)
         .font(.system(size: 11, weight: .semibold, design: .rounded))
         .monospacedDigit()
     }
     .foregroundStyle(.primary)
+  }
+}
+
+enum MenuBarPromptRingImage {
+  private static let size = NSSize(width: 18, height: 18)
+
+  static func make(progress: Double?, showsError: Bool) -> NSImage {
+    let normalizedProgress = progress.map { min(max($0, 0), 1) }
+    let image = NSImage(size: size, flipped: false) { bounds in
+      NSGraphicsContext.current?.shouldAntialias = true
+
+      drawTrack(in: bounds, hasProgress: normalizedProgress != nil)
+
+      if let normalizedProgress {
+        drawProgress(normalizedProgress, in: bounds)
+      }
+
+      if showsError {
+        drawErrorMark(in: bounds)
+      } else {
+        drawPromptMark(in: bounds, hasProgress: normalizedProgress != nil)
+      }
+
+      return true
+    }
+    image.isTemplate = true
+    return image
+  }
+
+  private static func drawTrack(in bounds: NSRect, hasProgress: Bool) {
+    let track = NSBezierPath(ovalIn: bounds.insetBy(dx: 1.35, dy: 1.35))
+    track.lineWidth = 1.7
+    NSColor.black.withAlphaComponent(hasProgress ? 0.2 : 0.42).setStroke()
+    track.stroke()
+  }
+
+  private static func drawProgress(_ progress: Double, in bounds: NSRect) {
+    guard progress > 0 else { return }
+
+    let arc = NSBezierPath()
+    arc.appendArc(
+      withCenter: NSPoint(x: bounds.midX, y: bounds.midY),
+      radius: min(bounds.width, bounds.height) / 2 - 1.35,
+      startAngle: 90,
+      endAngle: 90 - CGFloat(progress) * 360,
+      clockwise: true
+    )
+    arc.lineWidth = 1.7
+    arc.lineCapStyle = .round
+    NSColor.black.setStroke()
+    arc.stroke()
+  }
+
+  private static func drawPromptMark(in bounds: NSRect, hasProgress: Bool) {
+    let prompt = NSBezierPath()
+    prompt.move(to: NSPoint(x: bounds.midX - 3.4, y: bounds.midY + 3.5))
+    prompt.line(to: NSPoint(x: bounds.midX - 0.5, y: bounds.midY))
+    prompt.line(to: NSPoint(x: bounds.midX - 3.4, y: bounds.midY - 3.5))
+    prompt.move(to: NSPoint(x: bounds.midX + 0.9, y: bounds.midY - 3.5))
+    prompt.line(to: NSPoint(x: bounds.midX + 4.1, y: bounds.midY - 3.5))
+    prompt.lineWidth = 1.45
+    prompt.lineCapStyle = .round
+    prompt.lineJoinStyle = .round
+    NSColor.black.withAlphaComponent(hasProgress ? 1 : 0.72).setStroke()
+    prompt.stroke()
+  }
+
+  private static func drawErrorMark(in bounds: NSRect) {
+    let stem = NSBezierPath()
+    stem.move(to: NSPoint(x: bounds.midX, y: bounds.midY + 3.8))
+    stem.line(to: NSPoint(x: bounds.midX, y: bounds.midY - 1.1))
+    stem.lineWidth = 1.65
+    stem.lineCapStyle = .round
+    NSColor.black.setStroke()
+    stem.stroke()
+
+    NSColor.black.setFill()
+    NSBezierPath(
+      ovalIn: NSRect(x: bounds.midX - 0.8, y: bounds.midY - 4.2, width: 1.6, height: 1.6)
+    ).fill()
   }
 }
