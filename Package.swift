@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
   name: "CodexGauge",
+  defaultLocalization: "en",
   platforms: [
     .macOS(.v14)
   ],
@@ -19,7 +20,10 @@ let package = Package(
     .executableTarget(
       name: "CodexGaugeApp",
       dependencies: ["CodexGaugeCore"],
-      path: "Sources/CodexGaugeApp"
+      path: "Sources/CodexGaugeApp",
+      resources: [
+        .process("Resources")
+      ]
     ),
     .testTarget(
       name: "CodexGaugeCoreTests",

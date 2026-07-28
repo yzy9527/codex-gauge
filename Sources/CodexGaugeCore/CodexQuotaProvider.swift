@@ -498,36 +498,36 @@ public final class CodexQuotaProvider: QuotaProvider {
       publish(.available(snapshot))
     } catch CodexAppServerError.executableNotFound {
       consecutiveFailureCount += 1
-      publish(.unsupported(message: "未找到 Codex CLI，请先安装 Codex。", previous: previous))
+      publish(.unsupported(issue: .executableNotFound, previous: previous))
     } catch CodexAppServerError.methodUnavailable {
       consecutiveFailureCount += 1
-      publish(.unsupported(message: "当前 Codex 版本不支持额度读取。", previous: previous))
+      publish(.unsupported(issue: .methodUnavailable, previous: previous))
     } catch CodexAppServerError.signedOut {
       consecutiveFailureCount += 1
       publish(.signedOut(previous: previous))
     } catch CodexQuotaMappingError.missingQuotaWindow {
       consecutiveFailureCount += 1
-      publish(.unavailable(message: "当前账号暂时没有可用的额度数据。", previous: previous))
+      publish(.unavailable(issue: .quotaUnavailable, previous: previous))
     } catch CodexAppServerError.timeout {
       consecutiveFailureCount += 1
-      publish(.failed(message: "读取额度超时，请重试。", previous: previous))
+      publish(.failed(issue: .timeout, previous: previous))
     } catch CodexAppServerError.launchFailed {
       consecutiveFailureCount += 1
-      publish(.unsupported(message: "无法启动本机 Codex CLI。", previous: previous))
+      publish(.unsupported(issue: .launchFailed, previous: previous))
     } catch CodexAppServerError.processExited {
       consecutiveFailureCount += 1
-      publish(.failed(message: "Codex 连接已中断，请重试。", previous: previous))
+      publish(.failed(issue: .connectionInterrupted, previous: previous))
     } catch CodexAppServerError.invalidMessage,
       CodexQuotaMappingError.invalidResponse
     {
       consecutiveFailureCount += 1
-      publish(.failed(message: "Codex 返回了不兼容的数据。", previous: previous))
+      publish(.failed(issue: .incompatibleResponse, previous: previous))
     } catch CodexAppServerError.remoteFailure {
       consecutiveFailureCount += 1
-      publish(.failed(message: "Codex 暂时无法读取额度。", previous: previous))
+      publish(.failed(issue: .remoteFailure, previous: previous))
     } catch {
       consecutiveFailureCount += 1
-      publish(.failed(message: "无法从本机 Codex 读取额度。", previous: previous))
+      publish(.failed(issue: .unknown, previous: previous))
     }
   }
 

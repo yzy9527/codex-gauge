@@ -110,7 +110,7 @@ final class QuotaModelsTests: XCTestCase {
   func testFailureStateKeepsTheLastSuccessfulSnapshot() {
     let snapshot = QuotaSnapshot.preview(now: Date(timeIntervalSince1970: 1_000))
     let state = QuotaProviderState.failed(
-      message: "连接中断",
+      issue: .connectionInterrupted,
       previous: snapshot
     )
 

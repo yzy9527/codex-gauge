@@ -7,6 +7,7 @@ struct GaugeRing: View {
   let isLoading: Bool
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.locale) private var locale
 
   private var progress: Double {
     min(max(remainingPercentage / 100, 0), 1)
@@ -41,14 +42,23 @@ struct GaugeRing: View {
         }
         .foregroundStyle(GaugePalette.ink)
 
-        Text(isLoading ? "正在校准" : "剩余额度")
-          .font(.system(size: 12, weight: .medium))
-          .foregroundStyle(GaugePalette.secondaryInk)
+        Text(
+          verbatim: isLoading
+            ? L10n.text("gauge.calibrating", locale: locale)
+            : L10n.text("gauge.remainingQuota", locale: locale)
+        )
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(GaugePalette.secondaryInk)
       }
     }
     .frame(width: 166, height: 166)
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel("剩余额度 \(Int(remainingPercentage.rounded()))%")
+    .accessibilityLabel(
+      L10n.remainingQuotaAccessibility(
+        Int(remainingPercentage.rounded()),
+        locale: locale
+      )
+    )
   }
 }
 

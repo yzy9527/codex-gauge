@@ -89,14 +89,26 @@ public struct QuotaSnapshot: Equatable, Sendable {
   }
 }
 
+public enum QuotaProviderIssue: Equatable, Sendable {
+  case executableNotFound
+  case methodUnavailable
+  case quotaUnavailable
+  case timeout
+  case launchFailed
+  case connectionInterrupted
+  case incompatibleResponse
+  case remoteFailure
+  case unknown
+}
+
 public enum QuotaProviderState: Equatable, Sendable {
   case idle
   case loading(previous: QuotaSnapshot?)
   case available(QuotaSnapshot)
   case signedOut(previous: QuotaSnapshot?)
-  case unsupported(message: String, previous: QuotaSnapshot?)
-  case unavailable(message: String, previous: QuotaSnapshot?)
-  case failed(message: String, previous: QuotaSnapshot?)
+  case unsupported(issue: QuotaProviderIssue, previous: QuotaSnapshot?)
+  case unavailable(issue: QuotaProviderIssue, previous: QuotaSnapshot?)
+  case failed(issue: QuotaProviderIssue, previous: QuotaSnapshot?)
 
   public var snapshot: QuotaSnapshot? {
     switch self {

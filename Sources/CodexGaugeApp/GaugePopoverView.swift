@@ -5,6 +5,7 @@ import SwiftUI
 struct GaugePopoverView: View {
   @ObservedObject var viewModel: GaugeViewModel
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.locale) private var locale
   @State private var isRefreshHovered = false
 
   var body: some View {
@@ -65,8 +66,8 @@ struct GaugePopoverView: View {
       .focusEffectDisabled()
       .onHover { isRefreshHovered = $0 }
       .disabled(viewModel.state.isLoading)
-      .help("刷新额度")
-      .accessibilityLabel("刷新额度")
+      .help(L10n.text("action.refreshQuota", locale: locale))
+      .accessibilityLabel(L10n.text("action.refreshQuota", locale: locale))
     }
     .foregroundStyle(GaugePalette.ink)
     .padding(.horizontal, 20)
@@ -87,11 +88,11 @@ struct GaugePopoverView: View {
 
       VStack(spacing: 0) {
         MetricRow(
-          label: "重置时间",
+          label: L10n.text("metric.resetTime", locale: locale),
           value: localDateTimeDescription(for: displayWindow.resetDate)
         )
         MetricRow(
-          label: "距离重置",
+          label: L10n.text("metric.timeUntilReset", locale: locale),
           value: relativeResetDescription(for: displayWindow.resetDate)
         )
 
@@ -114,11 +115,11 @@ struct GaugePopoverView: View {
     case .idle, .available, .loading:
       EmptyView()
     case .signedOut:
-      InlineNotice(text: "请先在 Codex 中登录，然后重试。")
-    case .unsupported(let message, _),
-      .unavailable(let message, _),
-      .failed(let message, _):
-      InlineNotice(text: message)
+      InlineNotice(text: L10n.text("notice.signedOut", locale: locale))
+    case .unsupported(let issue, _),
+      .unavailable(let issue, _),
+      .failed(let issue, _):
+      InlineNotice(text: L10n.issueMessage(issue, locale: locale))
     }
   }
 
@@ -134,10 +135,10 @@ struct GaugePopoverView: View {
       .frame(width: 92, height: 92)
 
       VStack(spacing: 5) {
-        Text(emptyStateTitle)
+        Text(verbatim: L10n.emptyStateTitle(for: viewModel.state, locale: locale))
           .font(.system(size: 15, weight: .semibold))
           .foregroundStyle(GaugePalette.ink)
-        Text(emptyStateMessage)
+        Text(verbatim: L10n.emptyStateMessage(for: viewModel.state, locale: locale))
           .font(.system(size: 12))
           .foregroundStyle(GaugePalette.secondaryInk)
           .multilineTextAlignment(.center)
@@ -146,13 +147,13 @@ struct GaugePopoverView: View {
 
       HStack(spacing: 8) {
         if viewModel.canSelectCodexExecutable {
-          Button("选择 Codex CLI") {
+          Button(L10n.text("action.selectCodexCLI", locale: locale)) {
             viewModel.selectCodexExecutable()
           }
           .buttonStyle(SecondaryInstrumentButtonStyle())
         }
 
-        Button("重新读取") {
+        Button(L10n.text("action.retry", locale: locale)) {
           viewModel.refresh()
         }
         .buttonStyle(PrimaryInstrumentButtonStyle())
@@ -174,7 +175,7 @@ struct GaugePopoverView: View {
           Image(systemName: "exclamationmark.circle")
           Text(actionMessage)
           Spacer()
-          Button("关闭") {
+          Button(L10n.text("action.close", locale: locale)) {
             viewModel.dismissActionMessage()
           }
           .buttonStyle(.plain)
@@ -186,7 +187,7 @@ struct GaugePopoverView: View {
       }
 
       HStack {
-        Button("打开 Codex") {
+        Button(L10n.text("action.openCodex", locale: locale)) {
           viewModel.openCodex()
         }
         .buttonStyle(.plain)
@@ -195,7 +196,7 @@ struct GaugePopoverView: View {
 
         Spacer()
 
-        Button("退出") {
+        Button(L10n.text("action.quit", locale: locale)) {
           viewModel.quit()
         }
         .buttonStyle(.plain)
@@ -205,38 +206,6 @@ struct GaugePopoverView: View {
       }
       .padding(.horizontal, 20)
       .padding(.vertical, 15)
-    }
-  }
-
-  private var emptyStateTitle: String {
-    switch viewModel.state {
-    case .loading:
-      "正在读取额度"
-    case .signedOut:
-      "Codex 尚未登录"
-    case .unsupported:
-      "当前环境不支持"
-    case .unavailable:
-      "暂时没有额度数据"
-    case .failed:
-      "读取额度失败"
-    case .idle, .available:
-      "额度尚未读取"
-    }
-  }
-
-  private var emptyStateMessage: String {
-    switch viewModel.state {
-    case .loading:
-      "正在与本机 Codex 建立连接。"
-    case .signedOut:
-      "请在 Codex 中完成登录后重新读取。"
-    case .unsupported(let message, _),
-      .unavailable(let message, _),
-      .failed(let message, _):
-      message
-    case .idle, .available:
-      "点击重新读取获取当前额度。"
     }
   }
 
@@ -257,42 +226,45 @@ struct GaugePopoverView: View {
 
   private var lastUpdatedDescription: String {
     if viewModel.state.isLoading {
-      return viewModel.snapshot == nil ? "正在连接…" : "正在更新…"
+      return viewModel.snapshot == nil
+        ? L10n.text("status.connecting", locale: locale)
+        : L10n.text("status.updating", locale: locale)
     }
     guard let date = viewModel.snapshot?.lastUpdated else {
-      return "尚未更新"
+      return L10n.text("status.neverUpdated", locale: locale)
     }
-    return "更新于 "
-      + date.formatted(
-        .relative(presentation: .named, unitsStyle: .wide).locale(Locale(identifier: "zh_CN")))
+    let relativeDescription = date.formatted(
+      .relative(presentation: .named, unitsStyle: .wide).locale(locale)
+    )
+    return L10n.updatedAt(relativeDescription, locale: locale)
   }
 
   @ViewBuilder
   private func resetCreditsContent(_ summary: QuotaResetCredits?) -> some View {
     if let summary {
       MetricRow(
-        label: "可用重置",
-        value: "\(summary.availableCount) 次"
+        label: L10n.text("metric.availableResets", locale: locale),
+        value: L10n.availableResetCount(summary.availableCount, locale: locale)
       )
 
       ForEach(Array(summary.displayCredits.enumerated()), id: \.offset) { index, credit in
         MetricRow(
-          label: "第 \(index + 1) 次到期",
+          label: L10n.resetExpirationLabel(index: index + 1, locale: locale),
           value: expirationDescription(for: credit.expirationDate)
         )
       }
 
       if summary.unavailableDetailCount > 0 {
         MetricRow(
-          label: "另有 \(summary.unavailableDetailCount) 次",
-          value: "到期时间暂不可用",
+          label: L10n.additionalResetCount(summary.unavailableDetailCount, locale: locale),
+          value: L10n.text("reset.expirationUnavailable", locale: locale),
           valueColor: GaugePalette.secondaryInk
         )
       }
     } else {
       MetricRow(
-        label: "可用重置",
-        value: "暂不可用",
+        label: L10n.text("metric.availableResets", locale: locale),
+        value: L10n.text("status.unavailable", locale: locale),
         valueColor: GaugePalette.secondaryInk
       )
     }
@@ -301,7 +273,7 @@ struct GaugePopoverView: View {
   private func localDateTimeDescription(for date: Date) -> String {
     date.formatted(
       Date.FormatStyle(
-        locale: Locale(identifier: "zh_CN"),
+        locale: locale,
         timeZone: .autoupdatingCurrent
       )
       .month()
@@ -313,7 +285,7 @@ struct GaugePopoverView: View {
 
   private func expirationDescription(for date: Date?) -> String {
     guard let date else {
-      return "长期有效"
+      return L10n.text("reset.neverExpires", locale: locale)
     }
     return localDateTimeDescription(for: date)
   }
@@ -322,12 +294,12 @@ struct GaugePopoverView: View {
     let interval = max(date.timeIntervalSinceNow, 0)
     let hours = Int(interval / 3_600)
     if hours >= 24 {
-      return "还有 \(max(hours / 24, 1)) 天"
+      return L10n.daysUntilReset(max(hours / 24, 1), locale: locale)
     }
     if hours >= 1 {
-      return "还有 \(hours) 小时"
+      return L10n.hoursUntilReset(hours, locale: locale)
     }
-    return "不到 1 小时"
+    return L10n.text("reset.lessThanOneHour", locale: locale)
   }
 }
 

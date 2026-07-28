@@ -21,12 +21,12 @@ final class CodexQuotaProviderTests: XCTestCase {
         category = "loading"
       case .signedOut:
         category = "signedOut"
-      case .unsupported(let message, _):
-        category = "unsupported: \(message)"
-      case .unavailable(let message, _):
-        category = "unavailable: \(message)"
-      case .failed(let message, _):
-        category = "failed: \(message)"
+      case .unsupported(let issue, _):
+        category = "unsupported: \(issue)"
+      case .unavailable(let issue, _):
+        category = "unavailable: \(issue)"
+      case .failed(let issue, _):
+        category = "failed: \(issue)"
       case .available:
         category = "available"
       }

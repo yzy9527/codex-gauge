@@ -8,6 +8,50 @@ import XCTest
 #endif
 
 final class GaugeSnapshotTests: XCTestCase {
+  func testLocalizesStaticAndDynamicStringsInEnglishAndSimplifiedChinese() {
+    let english = Locale(identifier: "en")
+    let chinese = Locale(identifier: "zh-Hans")
+
+    XCTAssertEqual(L10n.text("action.retry", locale: english), "Try Again")
+    XCTAssertEqual(L10n.text("action.retry", locale: chinese), "重新读取")
+    XCTAssertEqual(
+      L10n.localizationIdentifier(for: Locale(identifier: "zh-Hant")).lowercased(),
+      "zh-hans"
+    )
+    XCTAssertEqual(
+      L10n.text("action.retry", locale: Locale(identifier: "zh-Hant")),
+      "重新读取"
+    )
+    XCTAssertEqual(
+      L10n.text("action.retry", locale: Locale(identifier: "fr")),
+      "Try Again"
+    )
+    XCTAssertEqual(L10n.availableResetCount(1, locale: Locale(identifier: "fr")), "1 reset")
+    XCTAssertEqual(L10n.availableResetCount(1, locale: english), "1 reset")
+    XCTAssertEqual(L10n.availableResetCount(2, locale: english), "2 resets")
+    XCTAssertEqual(L10n.availableResetCount(2, locale: chinese), "2 次")
+    XCTAssertEqual(L10n.hoursUntilReset(1, locale: english), "1 hour remaining")
+    XCTAssertEqual(L10n.hoursUntilReset(2, locale: english), "2 hours remaining")
+    XCTAssertEqual(L10n.hoursUntilReset(2, locale: chinese), "还有 2 小时")
+  }
+
+  @MainActor
+  func testExecutableSelectionUsesSemanticIssueInsteadOfLocalizedText() {
+    let selectable = GaugeViewModel(
+      provider: MockQuotaProvider(
+        initialState: .unsupported(issue: .executableNotFound, previous: nil)
+      )
+    )
+    let unsupportedVersion = GaugeViewModel(
+      provider: MockQuotaProvider(
+        initialState: .unsupported(issue: .methodUnavailable, previous: nil)
+      )
+    )
+
+    XCTAssertTrue(selectable.canSelectCodexExecutable)
+    XCTAssertFalse(unsupportedVersion.canSelectCodexExecutable)
+  }
+
   @MainActor
   func testMenuBarIconRendersNormalLoadingAndErrorStates() throws {
     let snapshot = QuotaSnapshot.preview()
@@ -26,11 +70,11 @@ final class GaugeSnapshotTests: XCTestCase {
       ),
       MenuBarGaugeIcon(
         remainingPercentage: nil,
-        state: .failed(message: "test failure", previous: nil)
+        state: .failed(issue: .unknown, previous: nil)
       ),
       MenuBarGaugeIcon(
         remainingPercentage: snapshot.displayWindow?.remainingPercentage,
-        state: .failed(message: "test failure", previous: snapshot)
+        state: .failed(issue: .unknown, previous: snapshot)
       ),
     ]
 
@@ -64,6 +108,26 @@ final class GaugeSnapshotTests: XCTestCase {
     XCTAssertEqual(image.size.width, 326, accuracy: 0.5)
     XCTAssertGreaterThan(image.size.height, 360)
 
+    for locale in [Locale(identifier: "en"), Locale(identifier: "zh-Hans")] {
+      let localizedRenderer = ImageRenderer(
+        content: GaugePopoverView(viewModel: viewModel)
+          .environment(\.locale, locale)
+      )
+      localizedRenderer.scale = 2
+      let localizedImage = try XCTUnwrap(localizedRenderer.nsImage)
+      XCTAssertEqual(localizedImage.size.width, 326, accuracy: 0.5)
+      XCTAssertGreaterThan(localizedImage.size.height, 360)
+
+      if ProcessInfo.processInfo.environment["CODEX_GAUGE_RENDER_PREVIEW"] == "1" {
+        try writePNG(
+          localizedImage,
+          to: URL(
+            fileURLWithPath: "/tmp/codex-gauge-preview-\(locale.identifier).png"
+          )
+        )
+      }
+    }
+
     guard ProcessInfo.processInfo.environment["CODEX_GAUGE_RENDER_PREVIEW"] == "1" else {
       return
     }
@@ -89,7 +153,8 @@ final class GaugeSnapshotTests: XCTestCase {
   ) throws {
     let background = colorScheme == .light ? Color.white : Color.black
     let renderer = ImageRenderer(
-      content: view
+      content:
+        view
         .environment(\.colorScheme, colorScheme)
         .padding(12)
         .background(background)

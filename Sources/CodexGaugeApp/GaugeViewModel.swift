@@ -28,15 +28,15 @@ final class GaugeViewModel: ObservableObject {
   }
 
   var canSelectCodexExecutable: Bool {
-    guard case .unsupported(let message, _) = state else { return false }
-    return message.contains("未找到 Codex CLI")
+    guard case .unsupported(let issue, _) = state else { return false }
+    return issue == .executableNotFound
   }
 
   var menuBarAccessibilityLabel: String {
     guard let remaining = displayWindow?.remainingPercentage else {
-      return "Codex Gauge，额度不可用"
+      return L10n.text("accessibility.menuBarUnavailable")
     }
-    return "Codex Gauge，剩余 \(Int(remaining.rounded()))%"
+    return L10n.menuBarRemaining(Int(remaining.rounded()))
   }
 
   func startIfNeeded() {
@@ -53,9 +53,9 @@ final class GaugeViewModel: ObservableObject {
 
   func selectCodexExecutable() {
     let panel = NSOpenPanel()
-    panel.title = "选择 Codex CLI"
-    panel.message = "请选择可执行的 codex 文件。"
-    panel.prompt = "选择"
+    panel.title = L10n.text("action.selectCodexCLI")
+    panel.message = L10n.text("cliPicker.message")
+    panel.prompt = L10n.text("action.choose")
     panel.canChooseDirectories = false
     panel.canChooseFiles = true
     panel.allowsMultipleSelection = false
@@ -66,7 +66,7 @@ final class GaugeViewModel: ObservableObject {
         try await provider.selectCodexExecutable(at: executableURL)
         actionMessage = nil
       } catch {
-        actionMessage = "所选文件不是可执行文件"
+        actionMessage = L10n.text("error.invalidExecutable")
       }
     }
   }
@@ -84,7 +84,7 @@ final class GaugeViewModel: ObservableObject {
       ?? existingApplicationURL()
 
     guard let applicationURL else {
-      actionMessage = "未找到 Codex 应用"
+      actionMessage = L10n.text("error.codexAppNotFound")
       return
     }
 
@@ -94,7 +94,8 @@ final class GaugeViewModel: ObservableObject {
       configuration: configuration
     ) { [weak self] _, error in
       Task { @MainActor in
-        self?.actionMessage = error == nil ? nil : "无法打开 Codex"
+        self?.actionMessage =
+          error == nil ? nil : L10n.text("error.codexAppOpenFailed")
       }
     }
   }
