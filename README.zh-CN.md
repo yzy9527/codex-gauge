@@ -61,7 +61,7 @@ app-server 的额度接口仍是实验性接口，未来 Codex 版本可能调�
 shasum -a 256 -c CodexGauge-0.1.0-arm64.dmg.sha256
 ```
 
-Release 还包含 GitHub 构建来源证明。已安装 GitHub CLI 时可以运行：
+公开仓库的 Release 还包含 GitHub 构建来源证明。已安装 GitHub CLI 时可以运行：
 
 ```sh
 gh attestation verify CodexGauge-0.1.0-arm64.dmg \
@@ -115,7 +115,7 @@ git tag -a v0.1.0 -m "Codex Gauge v0.1.0"
 git push origin v0.1.0
 ```
 
-GitHub Actions 会运行测试，构建并校验采用 ad-hoc 签名的 `arm64` DMG，生成 SHA-256 和构建来源证明，然后将两个文件发布到 GitHub Releases。该流程使用 Actions 自动提供的 `GITHUB_TOKEN`，不需要配置 Apple 签名或公证 Secrets。
+GitHub Actions 会运行测试，构建并校验采用 ad-hoc 签名的 `arm64` DMG，生成 SHA-256，然后将两个文件发布到 GitHub Releases；公开仓库还会生成构建来源证明。该流程使用 Actions 自动提供的 `GITHUB_TOKEN`，不需要配置 Apple 签名或公证 Secrets。
 
 如果以后加入 Developer ID 分发，可在构建时设置 `CODESIGN_IDENTITY` 和 `DEVELOPMENT_TEAM`，再使用 `scripts/notarize-release.sh` 对已签名的 DMG 完成公证。
 

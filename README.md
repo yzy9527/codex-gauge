@@ -61,7 +61,7 @@ Download the DMG and its `.sha256` file into the same directory, then run:
 shasum -a 256 -c CodexGauge-0.1.0-arm64.dmg.sha256
 ```
 
-Releases also include GitHub build provenance. With GitHub CLI installed:
+Public-repository releases also include GitHub build provenance. With GitHub CLI installed:
 
 ```sh
 gh attestation verify CodexGauge-0.1.0-arm64.dmg \
@@ -115,7 +115,7 @@ git tag -a v0.1.0 -m "Codex Gauge v0.1.0"
 git push origin v0.1.0
 ```
 
-GitHub Actions runs the tests, builds and verifies the ad-hoc signed `arm64` DMG, generates a SHA-256 file and build-provenance attestation, and publishes both files to GitHub Releases. This workflow uses the automatically provided `GITHUB_TOKEN` and requires no Apple signing or notarization secrets.
+GitHub Actions runs the tests, builds and verifies the ad-hoc signed `arm64` DMG, generates a SHA-256 file, and publishes both files to GitHub Releases. Public repositories also receive a build-provenance attestation. This workflow uses the automatically provided `GITHUB_TOKEN` and requires no Apple signing or notarization secrets.
 
 If Developer ID distribution is added in the future, set `CODESIGN_IDENTITY` and `DEVELOPMENT_TEAM` during the build, then notarize the signed DMG with `scripts/notarize-release.sh`.
 
