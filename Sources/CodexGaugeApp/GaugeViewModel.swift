@@ -27,6 +27,11 @@ final class GaugeViewModel: ObservableObject {
     snapshot?.displayWindow
   }
 
+  var canSelectCodexExecutable: Bool {
+    guard case .unsupported(let message, _) = state else { return false }
+    return message.contains("未找到 Codex CLI")
+  }
+
   var menuBarAccessibilityLabel: String {
     guard let remaining = displayWindow?.remainingPercentage else {
       return "Codex Gauge，额度不可用"
@@ -43,6 +48,26 @@ final class GaugeViewModel: ObservableObject {
   func refresh() {
     Task {
       await provider.refresh()
+    }
+  }
+
+  func selectCodexExecutable() {
+    let panel = NSOpenPanel()
+    panel.title = "选择 Codex CLI"
+    panel.message = "请选择可执行的 codex 文件。"
+    panel.prompt = "选择"
+    panel.canChooseDirectories = false
+    panel.canChooseFiles = true
+    panel.allowsMultipleSelection = false
+
+    guard panel.runModal() == .OK, let executableURL = panel.url else { return }
+    Task {
+      do {
+        try await provider.selectCodexExecutable(at: executableURL)
+        actionMessage = nil
+      } catch {
+        actionMessage = "所选文件不是可执行文件"
+      }
     }
   }
 
@@ -71,6 +96,13 @@ final class GaugeViewModel: ObservableObject {
       Task { @MainActor in
         self?.actionMessage = error == nil ? nil : "无法打开 Codex"
       }
+    }
+  }
+
+  func quit() {
+    Task {
+      await provider.shutdown()
+      NSApplication.shared.terminate(nil)
     }
   }
 

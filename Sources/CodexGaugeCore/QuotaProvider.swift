@@ -8,6 +8,12 @@ public protocol QuotaProvider: AnyObject {
     _ observer: @escaping @MainActor (QuotaProviderState) -> Void
   )
   func refresh() async
+  func selectCodexExecutable(at url: URL) async throws
+  func shutdown() async
+}
+
+public enum QuotaProviderConfigurationError: Error, Equatable {
+  case invalidExecutable
 }
 
 @MainActor
@@ -38,6 +44,15 @@ public final class MockQuotaProvider: QuotaProvider {
     let usedDelta = Double(refreshCount % 4)
     publish(.available(.preview(usedDelta: usedDelta)))
   }
+
+  public func selectCodexExecutable(at url: URL) async throws {
+    guard FileManager.default.isExecutableFile(atPath: url.path) else {
+      throw QuotaProviderConfigurationError.invalidExecutable
+    }
+    await refresh()
+  }
+
+  public func shutdown() async {}
 
   private func publish(_ state: QuotaProviderState) {
     currentState = state

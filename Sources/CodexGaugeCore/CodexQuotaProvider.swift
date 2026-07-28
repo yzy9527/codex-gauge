@@ -182,6 +182,15 @@ private actor CodexAppServerClient {
     )
   }
 
+  func shutdown() {
+    updateHandler = nil
+    let requestIDs = Array(pendingRequests.keys)
+    for requestID in requestIDs {
+      finishRequest(requestID, with: .failure(CodexAppServerError.processExited))
+    }
+    stopProcess()
+  }
+
   private func ensureInitialized() async throws {
     if isInitialized, process?.isRunning == true {
       return
@@ -520,6 +529,27 @@ public final class CodexQuotaProvider: QuotaProvider {
       consecutiveFailureCount += 1
       publish(.failed(message: "无法从本机 Codex 读取额度。", previous: previous))
     }
+  }
+
+  public func selectCodexExecutable(at url: URL) async throws {
+    guard FileManager.default.isExecutableFile(atPath: url.path) else {
+      throw QuotaProviderConfigurationError.invalidExecutable
+    }
+
+    UserDefaults.standard.set(
+      url.path,
+      forKey: "CodexGauge.codexExecutablePath"
+    )
+    await refresh()
+  }
+
+  public func shutdown() async {
+    notificationRefreshTask?.cancel()
+    periodicRefreshTask?.cancel()
+    notificationRefreshTask = nil
+    periodicRefreshTask = nil
+    didConfigureUpdates = false
+    await client.shutdown()
   }
 
   private func configureUpdatesIfNeeded() async {
