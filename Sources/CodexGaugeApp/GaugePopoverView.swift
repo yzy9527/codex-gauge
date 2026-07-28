@@ -44,6 +44,11 @@ struct GaugePopoverView: View {
 
       Spacer()
 
+      Text(lastUpdatedDescription)
+        .font(.system(size: 10.5, weight: .regular, design: .monospaced))
+        .foregroundStyle(GaugePalette.secondaryInk)
+        .lineLimit(1)
+
       Button {
         viewModel.refresh()
       } label: {
@@ -139,11 +144,20 @@ struct GaugePopoverView: View {
           .fixedSize(horizontal: false, vertical: true)
       }
 
-      Button("重新读取") {
-        viewModel.refresh()
+      HStack(spacing: 8) {
+        if viewModel.canSelectCodexExecutable {
+          Button("选择 Codex CLI") {
+            viewModel.selectCodexExecutable()
+          }
+          .buttonStyle(SecondaryInstrumentButtonStyle())
+        }
+
+        Button("重新读取") {
+          viewModel.refresh()
+        }
+        .buttonStyle(PrimaryInstrumentButtonStyle())
+        .disabled(viewModel.state.isLoading)
       }
-      .buttonStyle(PrimaryInstrumentButtonStyle())
-      .disabled(viewModel.state.isLoading)
     }
     .frame(maxWidth: .infinity)
     .padding(.horizontal, 30)
@@ -172,18 +186,22 @@ struct GaugePopoverView: View {
       }
 
       HStack {
-        Text(lastUpdatedDescription)
-          .font(.system(size: 10.5, weight: .regular, design: .monospaced))
-          .foregroundStyle(GaugePalette.secondaryInk)
-
-        Spacer()
-
         Button("打开 Codex") {
           viewModel.openCodex()
         }
         .buttonStyle(.plain)
         .font(.system(size: 12, weight: .semibold))
         .foregroundStyle(GaugePalette.ink)
+
+        Spacer()
+
+        Button("退出") {
+          viewModel.quit()
+        }
+        .buttonStyle(.plain)
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(GaugePalette.secondaryInk)
+        .keyboardShortcut("q", modifiers: .command)
       }
       .padding(.horizontal, 20)
       .padding(.vertical, 15)
@@ -238,6 +256,9 @@ struct GaugePopoverView: View {
   }
 
   private var lastUpdatedDescription: String {
+    if viewModel.state.isLoading {
+      return viewModel.snapshot == nil ? "正在连接…" : "正在更新…"
+    }
     guard let date = viewModel.snapshot?.lastUpdated else {
       return "尚未更新"
     }
@@ -377,6 +398,24 @@ private struct PrimaryInstrumentButtonStyle: ButtonStyle {
       .background(
         Capsule()
           .fill(configuration.isPressed ? GaugePalette.ink.opacity(0.8) : GaugePalette.ink)
+      )
+  }
+}
+
+private struct SecondaryInstrumentButtonStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .font(.system(size: 12, weight: .semibold))
+      .foregroundStyle(GaugePalette.ink)
+      .padding(.horizontal, 14)
+      .padding(.vertical, 7)
+      .background(
+        Capsule()
+          .fill(configuration.isPressed ? GaugePalette.track : GaugePalette.paper)
+      )
+      .overlay(
+        Capsule()
+          .stroke(GaugePalette.track, lineWidth: 1)
       )
   }
 }
