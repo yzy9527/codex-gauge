@@ -53,6 +53,44 @@ final class GaugeSnapshotTests: XCTestCase {
   }
 
   @MainActor
+  func testOpenCodexReportsWhenApplicationIsNotInstalled() async {
+    let opener = StubCodexApplicationOpener(applicationURL: nil)
+    let viewModel = GaugeViewModel(
+      provider: MockQuotaProvider(),
+      applicationOpener: opener
+    )
+
+    await viewModel.openCodex()
+
+    XCTAssertEqual(viewModel.actionMessage, L10n.text("error.codexAppNotFound"))
+    XCTAssertTrue(opener.openedURLs.isEmpty)
+  }
+
+  @MainActor
+  func testOpenCodexMapsLaunchFailureAndSuccessToActionMessage() async {
+    let applicationURL = URL(fileURLWithPath: "/Applications/Codex.app")
+    let opener = StubCodexApplicationOpener(
+      applicationURL: applicationURL,
+      shouldOpen: false
+    )
+    let viewModel = GaugeViewModel(
+      provider: MockQuotaProvider(),
+      applicationOpener: opener
+    )
+
+    await viewModel.openCodex()
+
+    XCTAssertEqual(viewModel.actionMessage, L10n.text("error.codexAppOpenFailed"))
+    XCTAssertEqual(opener.openedURLs, [applicationURL])
+
+    opener.shouldOpen = true
+    await viewModel.openCodex()
+
+    XCTAssertNil(viewModel.actionMessage)
+    XCTAssertEqual(opener.openedURLs, [applicationURL, applicationURL])
+  }
+
+  @MainActor
   func testMenuBarIconRendersNormalLoadingAndErrorStates() throws {
     let snapshot = QuotaSnapshot.preview()
     let templateImage = MenuBarPromptRingImage.make(progress: 0.62, showsError: false)
@@ -167,5 +205,26 @@ final class GaugeSnapshotTests: XCTestCase {
       image,
       to: URL(fileURLWithPath: "/tmp/codex-gauge-menu-icon-\(index)-\(suffix).png")
     )
+  }
+}
+
+@MainActor
+private final class StubCodexApplicationOpener: CodexApplicationOpening {
+  let applicationURL: URL?
+  var shouldOpen: Bool
+  private(set) var openedURLs: [URL] = []
+
+  init(applicationURL: URL?, shouldOpen: Bool = true) {
+    self.applicationURL = applicationURL
+    self.shouldOpen = shouldOpen
+  }
+
+  func installedApplicationURL() -> URL? {
+    applicationURL
+  }
+
+  func openApplication(at url: URL) async -> Bool {
+    openedURLs.append(url)
+    return shouldOpen
   }
 }

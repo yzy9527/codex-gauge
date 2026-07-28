@@ -3,15 +3,71 @@ import CodexGaugeCore
 import Foundation
 
 @MainActor
+protocol CodexApplicationOpening: AnyObject {
+  func installedApplicationURL() -> URL?
+  func openApplication(at url: URL) async -> Bool
+}
+
+@MainActor
+final class WorkspaceCodexApplicationOpener: CodexApplicationOpening {
+  func installedApplicationURL() -> URL? {
+    let bundleIdentifiers = [
+      "com.openai.codex"
+    ]
+
+    return
+      bundleIdentifiers
+      .lazy
+      .compactMap(NSWorkspace.shared.urlForApplication(withBundleIdentifier:))
+      .first
+      ?? existingApplicationURL()
+  }
+
+  func openApplication(at url: URL) async -> Bool {
+    await WorkspaceApplicationLaunchRequest.openApplication(at: url)
+  }
+
+  private func existingApplicationURL() -> URL? {
+    let candidates = [
+      "/Applications/Codex.app",
+      NSString(string: "~/Applications/Codex.app").expandingTildeInPath,
+    ]
+    return
+      candidates
+      .map(URL.init(fileURLWithPath:))
+      .first { FileManager.default.fileExists(atPath: $0.path) }
+  }
+}
+
+private enum WorkspaceApplicationLaunchRequest {
+  static func openApplication(at url: URL) async -> Bool {
+    await withCheckedContinuation { continuation in
+      let configuration = NSWorkspace.OpenConfiguration()
+      NSWorkspace.shared.openApplication(
+        at: url,
+        configuration: configuration
+      ) { _, error in
+        continuation.resume(returning: error == nil)
+      }
+    }
+  }
+}
+
+@MainActor
 final class GaugeViewModel: ObservableObject {
   @Published private(set) var state: QuotaProviderState
   @Published private(set) var actionMessage: String?
 
   private let provider: any QuotaProvider
+  private let applicationOpener: any CodexApplicationOpening
   private var hasStarted = false
 
-  init(provider: any QuotaProvider) {
+  init(
+    provider: any QuotaProvider,
+    applicationOpener: any CodexApplicationOpening = WorkspaceCodexApplicationOpener()
+  ) {
     self.provider = provider
+    self.applicationOpener = applicationOpener
     state = provider.currentState
 
     provider.observeState { [weak self] state in
@@ -71,33 +127,14 @@ final class GaugeViewModel: ObservableObject {
     }
   }
 
-  func openCodex() {
-    let bundleIdentifiers = [
-      "com.openai.codex"
-    ]
-
-    let applicationURL =
-      bundleIdentifiers
-      .lazy
-      .compactMap(NSWorkspace.shared.urlForApplication(withBundleIdentifier:))
-      .first
-      ?? existingApplicationURL()
-
-    guard let applicationURL else {
+  func openCodex() async {
+    guard let applicationURL = applicationOpener.installedApplicationURL() else {
       actionMessage = L10n.text("error.codexAppNotFound")
       return
     }
 
-    let configuration = NSWorkspace.OpenConfiguration()
-    NSWorkspace.shared.openApplication(
-      at: applicationURL,
-      configuration: configuration
-    ) { [weak self] _, error in
-      Task { @MainActor in
-        self?.actionMessage =
-          error == nil ? nil : L10n.text("error.codexAppOpenFailed")
-      }
-    }
+    let didOpen = await applicationOpener.openApplication(at: applicationURL)
+    actionMessage = didOpen ? nil : L10n.text("error.codexAppOpenFailed")
   }
 
   func quit() {
@@ -109,16 +146,5 @@ final class GaugeViewModel: ObservableObject {
 
   func dismissActionMessage() {
     actionMessage = nil
-  }
-
-  private func existingApplicationURL() -> URL? {
-    let candidates = [
-      "/Applications/Codex.app",
-      NSString(string: "~/Applications/Codex.app").expandingTildeInPath,
-    ]
-    return
-      candidates
-      .map(URL.init(fileURLWithPath:))
-      .first { FileManager.default.fileExists(atPath: $0.path) }
   }
 }

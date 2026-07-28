@@ -16,6 +16,12 @@ Codex Gauge shows your remaining Codex quota, the regular reset time, and availa
 
 > Codex Gauge is a community project and is not an official OpenAI product.
 
+<p align="center">
+  <img src="docs/images/codex-gauge-panel-en.png" width="360" alt="Codex Gauge popover showing simulated quota data">
+</p>
+
+<p align="center"><sub>Preview uses simulated data.</sub></p>
+
 ## Features
 
 - Displays the remaining Codex quota directly in the menu bar.
