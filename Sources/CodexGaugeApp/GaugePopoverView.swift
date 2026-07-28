@@ -33,14 +33,8 @@ struct GaugePopoverView: View {
   private var header: some View {
     HStack(alignment: .center) {
       HStack(spacing: 7) {
-        Text("CODEX")
+        Text("CODEX-GAUGE")
           .font(.system(size: 11, weight: .bold, design: .monospaced))
-        Rectangle()
-          .fill(GaugePalette.track)
-          .frame(width: 18, height: 1)
-        Text("GAUGE")
-          .font(.system(size: 11, weight: .medium, design: .monospaced))
-          .foregroundStyle(GaugePalette.secondaryInk)
       }
 
       Spacer()
@@ -188,7 +182,9 @@ struct GaugePopoverView: View {
 
       HStack {
         Button(L10n.text("action.openCodex", locale: locale)) {
-          viewModel.openCodex()
+          Task {
+            await viewModel.openCodex()
+          }
         }
         .buttonStyle(.plain)
         .font(.system(size: 12, weight: .semibold))

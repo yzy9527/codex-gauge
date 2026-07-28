@@ -16,6 +16,12 @@ Codex Gauge 无需打开 Codex，即可展示剩余额度、常规重置时间�
 
 > Codex Gauge 是社区项目，并非 OpenAI 官方产品。
 
+<p align="center">
+  <img src="docs/images/codex-gauge-panel-zh-Hans.png" width="360" alt="使用模拟额度数据的 Codex Gauge 面板">
+</p>
+
+<p align="center"><sub>预览使用模拟数据。</sub></p>
+
 ## 功能特点
 
 - 直接在菜单栏展示 Codex 剩余额度。
