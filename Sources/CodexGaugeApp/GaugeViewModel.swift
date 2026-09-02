@@ -61,6 +61,7 @@ final class GaugeViewModel: ObservableObject {
   private let provider: any QuotaProvider
   private let applicationOpener: any CodexApplicationOpening
   private var hasStarted = false
+  private var launchObserver: NSObjectProtocol?
 
   init(
     provider: any QuotaProvider,
@@ -102,6 +103,25 @@ final class GaugeViewModel: ObservableObject {
     guard !hasStarted else { return }
     hasStarted = true
     refresh()
+  }
+
+  func startWhenApplicationFinishesLaunching() {
+    guard launchObserver == nil else { return }
+    if NSApplication.shared.isRunning {
+      startIfNeeded()
+      return
+    }
+
+    launchObserver = NotificationCenter.default.addObserver(
+      forName: NSApplication.didFinishLaunchingNotification,
+      object: NSApplication.shared,
+      queue: .main
+    ) { [weak self] _ in
+      Task { @MainActor [weak self] in
+        self?.removeLaunchObserver()
+        self?.startIfNeeded()
+      }
+    }
   }
 
   func refresh() {
@@ -149,5 +169,11 @@ final class GaugeViewModel: ObservableObject {
 
   func dismissActionMessage() {
     actionMessage = nil
+  }
+
+  private func removeLaunchObserver() {
+    guard let launchObserver else { return }
+    NotificationCenter.default.removeObserver(launchObserver)
+    self.launchObserver = nil
   }
 }
