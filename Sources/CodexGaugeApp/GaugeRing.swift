@@ -4,6 +4,7 @@ import SwiftUI
 
 struct GaugeRing: View {
   let remainingPercentage: Double
+  let period: QuotaWindowPeriod
   let isLoading: Bool
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -45,7 +46,7 @@ struct GaugeRing: View {
         Text(
           verbatim: isLoading
             ? L10n.text("gauge.calibrating", locale: locale)
-            : L10n.text("gauge.remainingQuota", locale: locale)
+            : L10n.remainingQuotaTitle(for: period, locale: locale)
         )
         .font(.system(size: 12, weight: .medium))
         .foregroundStyle(GaugePalette.secondaryInk)
@@ -56,6 +57,7 @@ struct GaugeRing: View {
     .accessibilityLabel(
       L10n.remainingQuotaAccessibility(
         Int(remainingPercentage.rounded()),
+        period: period,
         locale: locale
       )
     )

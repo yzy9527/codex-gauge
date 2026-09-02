@@ -1,6 +1,10 @@
 "accessibility.menuBarRemaining" = "Codex Gauge, %lld%% remaining";
+"accessibility.menuBarFiveHourRemaining" = "Codex Gauge, 5-hour quota %lld%% remaining";
+"accessibility.menuBarWeeklyRemaining" = "Codex Gauge, weekly quota %lld%% remaining";
 "accessibility.menuBarUnavailable" = "Codex Gauge, quota unavailable";
+"accessibility.fiveHourRemainingQuota" = "5-hour quota remaining: %lld%%";
 "accessibility.remainingQuota" = "Remaining quota: %lld%%";
+"accessibility.weeklyRemainingQuota" = "Weekly quota remaining: %lld%%";
 "action.choose" = "Choose";
 "action.close" = "Close";
 "action.openCodex" = "Open Codex";
@@ -31,10 +35,13 @@
 "error.timeout" = "Reading quota timed out. Try again.";
 "error.unknown" = "Couldn't read quota from Codex on this Mac.";
 "gauge.calibrating" = "Calibrating";
+"gauge.fiveHourRemainingQuota" = "5-hour remaining";
 "gauge.remainingQuota" = "Remaining quota";
+"gauge.weeklyRemainingQuota" = "Weekly remaining";
 "metric.availableResets" = "Available resets";
 "metric.resetTime" = "Reset time";
 "metric.timeUntilReset" = "Time until reset";
+"metric.weeklyQuota" = "Weekly remaining";
 "notice.signedOut" = "Sign in to Codex, then try again.";
 "reset.expirationLabel" = "Reset %lld expires";
 "reset.expirationUnavailable" = "Expiration unavailable";

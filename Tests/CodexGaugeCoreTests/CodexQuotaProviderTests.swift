@@ -50,10 +50,14 @@ final class CodexQuotaProviderTests: XCTestCase {
           "codex": {
             "primary": {
               "usedPercent": 35,
-              "windowDurationMins": 10080,
+              "windowDurationMins": 300,
               "resetsAt": 3000
             },
-            "secondary": null,
+            "secondary": {
+              "usedPercent": 65,
+              "windowDurationMins": 10080,
+              "resetsAt": 6000
+            },
             "unknownFutureField": true
           }
         },
@@ -74,9 +78,11 @@ final class CodexQuotaProviderTests: XCTestCase {
       now: Date(timeIntervalSince1970: 1_000)
     )
 
-    XCTAssertEqual(snapshot.windows.count, 1)
+    XCTAssertEqual(snapshot.windows.count, 2)
     XCTAssertEqual(snapshot.displayWindow?.usedPercentage, 35)
     XCTAssertEqual(snapshot.displayWindow?.resetDate, Date(timeIntervalSince1970: 3_000))
+    XCTAssertEqual(snapshot.displaySelection?.period, .fiveHour)
+    XCTAssertEqual(snapshot.weeklyWindow?.usedPercentage, 65)
     XCTAssertEqual(snapshot.resetCredits?.availableCount, 2)
     XCTAssertEqual(
       snapshot.resetCredits?.displayCredits.map(\.expirationDate),
@@ -107,6 +113,33 @@ final class CodexQuotaProviderTests: XCTestCase {
     XCTAssertEqual(snapshot.displayWindow?.remainingPercentage, 28)
     XCTAssertEqual(snapshot.displayWindow?.windowDurationMinutes, 0)
     XCTAssertNil(snapshot.resetCredits)
+  }
+
+  func testIdentifiesFiveHourWindowWhenProtocolPositionsAreReversed() throws {
+    let response = Data(
+      """
+      {
+        "rateLimits": {
+          "primary": {
+            "usedPercent": 70,
+            "windowDurationMins": 10080,
+            "resetsAt": 7000
+          },
+          "secondary": {
+            "usedPercent": 25,
+            "windowDurationMins": 300,
+            "resetsAt": 2500
+          }
+        }
+      }
+      """.utf8
+    )
+
+    let snapshot = try CodexQuotaMapper.snapshot(from: response)
+
+    XCTAssertEqual(snapshot.fiveHourWindow?.id, "secondary")
+    XCTAssertEqual(snapshot.weeklyWindow?.id, "primary")
+    XCTAssertEqual(snapshot.displayWindow?.id, "secondary")
   }
 
   func testRejectsResponseWithoutUsableResetDate() {

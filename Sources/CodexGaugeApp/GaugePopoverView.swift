@@ -13,9 +13,9 @@ struct GaugePopoverView: View {
       header
 
       if let snapshot = viewModel.snapshot,
-        let displayWindow = snapshot.displayWindow
+        let displaySelection = snapshot.displaySelection
       {
-        quotaContent(snapshot: snapshot, displayWindow: displayWindow)
+        quotaContent(snapshot: snapshot, displaySelection: displaySelection)
       } else {
         emptyState
       }
@@ -70,11 +70,14 @@ struct GaugePopoverView: View {
 
   private func quotaContent(
     snapshot: QuotaSnapshot,
-    displayWindow: QuotaWindow
+    displaySelection: QuotaDisplaySelection
   ) -> some View {
-    VStack(spacing: 0) {
+    let displayWindow = displaySelection.window
+
+    return VStack(spacing: 0) {
       GaugeRing(
         remainingPercentage: displayWindow.remainingPercentage,
+        period: displaySelection.period,
         isLoading: viewModel.state.isLoading
       )
       .padding(.top, 11)
@@ -90,6 +93,16 @@ struct GaugePopoverView: View {
           value: relativeResetDescription(for: displayWindow.resetDate)
         )
 
+        if displaySelection.period == .fiveHour,
+          let weeklyWindow = snapshot.weeklyWindow
+        {
+          Divider()
+            .overlay(GaugePalette.track)
+            .padding(.vertical, 4)
+
+          weeklyQuotaContent(weeklyWindow)
+        }
+
         Divider()
           .overlay(GaugePalette.track)
           .padding(.vertical, 4)
@@ -100,6 +113,28 @@ struct GaugePopoverView: View {
       .padding(.bottom, 16)
 
       statusNotice
+    }
+  }
+
+  private func weeklyQuotaContent(_ window: QuotaWindow) -> some View {
+    VStack(spacing: 0) {
+      MetricRow(
+        label: L10n.text("metric.weeklyQuota", locale: locale),
+        value: "\(Int(window.remainingPercentage.rounded()))%",
+        valueColor: GaugePalette.quotaColor(for: window.remainingPercentage)
+      )
+
+      QuotaProgressBar(remainingPercentage: window.remainingPercentage)
+        .padding(.vertical, 5)
+
+      MetricRow(
+        label: L10n.text("metric.resetTime", locale: locale),
+        value: localDateTimeDescription(for: window.resetDate)
+      )
+      MetricRow(
+        label: L10n.text("metric.timeUntilReset", locale: locale),
+        value: relativeResetDescription(for: window.resetDate)
+      )
     }
   }
 
@@ -316,6 +351,28 @@ private struct MetricRow: View {
         .foregroundStyle(valueColor)
     }
     .frame(minHeight: 30)
+  }
+}
+
+private struct QuotaProgressBar: View {
+  let remainingPercentage: Double
+
+  private var progress: Double {
+    min(max(remainingPercentage / 100, 0), 1)
+  }
+
+  var body: some View {
+    GeometryReader { geometry in
+      ZStack(alignment: .leading) {
+        Capsule()
+          .fill(GaugePalette.track)
+        Capsule()
+          .fill(GaugePalette.quotaColor(for: remainingPercentage))
+          .frame(width: geometry.size.width * progress)
+      }
+    }
+    .frame(height: 5)
+    .accessibilityHidden(true)
   }
 }
 

@@ -1,6 +1,10 @@
 "accessibility.menuBarRemaining" = "Codex Gauge，剩余 %lld%%";
+"accessibility.menuBarFiveHourRemaining" = "Codex Gauge，5 小时额度剩余 %lld%%";
+"accessibility.menuBarWeeklyRemaining" = "Codex Gauge，一周额度剩余 %lld%%";
 "accessibility.menuBarUnavailable" = "Codex Gauge，额度不可用";
+"accessibility.fiveHourRemainingQuota" = "5 小时额度剩余 %lld%%";
 "accessibility.remainingQuota" = "剩余额度 %lld%%";
+"accessibility.weeklyRemainingQuota" = "一周额度剩余 %lld%%";
 "action.choose" = "选择";
 "action.close" = "关闭";
 "action.openCodex" = "打开 Codex";
@@ -31,10 +35,13 @@
 "error.timeout" = "读取额度超时，请重试。";
 "error.unknown" = "无法从本机 Codex 读取额度。";
 "gauge.calibrating" = "正在校准";
+"gauge.fiveHourRemainingQuota" = "5 小时剩余额度";
 "gauge.remainingQuota" = "剩余额度";
+"gauge.weeklyRemainingQuota" = "一周剩余额度";
 "metric.availableResets" = "可用重置";
 "metric.resetTime" = "重置时间";
 "metric.timeUntilReset" = "距离重置";
+"metric.weeklyQuota" = "一周剩余额度";
 "notice.signedOut" = "请先在 Codex 中登录，然后重试。";
 "reset.expirationLabel" = "第 %lld 次到期";
 "reset.expirationUnavailable" = "到期时间暂不可用";

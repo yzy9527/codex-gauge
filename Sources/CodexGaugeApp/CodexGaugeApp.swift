@@ -18,7 +18,7 @@ struct CodexGaugeApp: App {
       GaugePopoverView(viewModel: viewModel)
     } label: {
       MenuBarGaugeIcon(
-        remainingPercentage: viewModel.displayWindow?.remainingPercentage,
+        remainingPercentage: viewModel.displaySelection?.window.remainingPercentage,
         state: viewModel.state
       )
       .accessibilityLabel(viewModel.menuBarAccessibilityLabel)

@@ -33,6 +33,14 @@ final class GaugeSnapshotTests: XCTestCase {
     XCTAssertEqual(L10n.hoursUntilReset(1, locale: english), "1 hour remaining")
     XCTAssertEqual(L10n.hoursUntilReset(2, locale: english), "2 hours remaining")
     XCTAssertEqual(L10n.hoursUntilReset(2, locale: chinese), "还有 2 小时")
+    XCTAssertEqual(
+      L10n.remainingQuotaTitle(for: .fiveHour, locale: english),
+      "5-hour remaining"
+    )
+    XCTAssertEqual(
+      L10n.remainingQuotaTitle(for: .weekly, locale: chinese),
+      "一周剩余额度"
+    )
   }
 
   @MainActor
@@ -50,6 +58,32 @@ final class GaugeSnapshotTests: XCTestCase {
 
     XCTAssertTrue(selectable.canSelectCodexExecutable)
     XCTAssertFalse(unsupportedVersion.canSelectCodexExecutable)
+  }
+
+  @MainActor
+  func testMenuBarFallsBackToWeeklyWindowWhenFiveHourWindowIsUnavailable() {
+    let now = Date(timeIntervalSince1970: 1_000)
+    let weeklyWindow = QuotaWindow(
+      id: "weekly",
+      usedPercentage: 40,
+      resetDate: now.addingTimeInterval(10_000),
+      windowDurationMinutes: 10_080
+    )
+    let snapshot = QuotaSnapshot(
+      windows: [weeklyWindow],
+      resetCredits: nil,
+      lastUpdated: now
+    )
+    let viewModel = GaugeViewModel(
+      provider: MockQuotaProvider(initialState: .available(snapshot))
+    )
+
+    XCTAssertEqual(viewModel.displaySelection?.period, .weekly)
+    XCTAssertEqual(viewModel.displaySelection?.window, weeklyWindow)
+    XCTAssertEqual(
+      viewModel.menuBarAccessibilityLabel,
+      L10n.menuBarRemaining(60, period: .weekly)
+    )
   }
 
   @MainActor

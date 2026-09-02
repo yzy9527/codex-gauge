@@ -1,5 +1,11 @@
 import Foundation
 
+public enum QuotaWindowPeriod: Equatable, Sendable {
+  case fiveHour
+  case weekly
+  case unknown
+}
+
 public struct QuotaWindow: Identifiable, Equatable, Sendable {
   public let id: String
   public let usedPercentage: Double
@@ -20,6 +26,27 @@ public struct QuotaWindow: Identifiable, Equatable, Sendable {
 
   public var remainingPercentage: Double {
     min(max(100 - usedPercentage, 0), 100)
+  }
+
+  public var period: QuotaWindowPeriod {
+    switch windowDurationMinutes {
+    case 300:
+      .fiveHour
+    case 10_080:
+      .weekly
+    default:
+      .unknown
+    }
+  }
+}
+
+public struct QuotaDisplaySelection: Equatable, Sendable {
+  public let window: QuotaWindow
+  public let period: QuotaWindowPeriod
+
+  public init(window: QuotaWindow) {
+    self.window = window
+    period = window.period
   }
 }
 
@@ -79,8 +106,31 @@ public struct QuotaSnapshot: Equatable, Sendable {
     self.lastUpdated = lastUpdated
   }
 
+  public var fiveHourWindow: QuotaWindow? {
+    preferredWindow(in: windows.filter { $0.period == .fiveHour })
+  }
+
+  public var weeklyWindow: QuotaWindow? {
+    preferredWindow(in: windows.filter { $0.period == .weekly })
+  }
+
+  public var displaySelection: QuotaDisplaySelection? {
+    if let fiveHourWindow {
+      return QuotaDisplaySelection(window: fiveHourWindow)
+    }
+    if let weeklyWindow {
+      return QuotaDisplaySelection(window: weeklyWindow)
+    }
+    guard let fallback = preferredWindow(in: windows) else { return nil }
+    return QuotaDisplaySelection(window: fallback)
+  }
+
   public var displayWindow: QuotaWindow? {
-    windows.min { left, right in
+    displaySelection?.window
+  }
+
+  private func preferredWindow(in candidates: [QuotaWindow]) -> QuotaWindow? {
+    candidates.min { left, right in
       if left.remainingPercentage == right.remainingPercentage {
         return left.resetDate < right.resetDate
       }

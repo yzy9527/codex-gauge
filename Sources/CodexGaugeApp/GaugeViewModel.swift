@@ -79,8 +79,8 @@ final class GaugeViewModel: ObservableObject {
     state.snapshot
   }
 
-  var displayWindow: QuotaWindow? {
-    snapshot?.displayWindow
+  var displaySelection: QuotaDisplaySelection? {
+    snapshot?.displaySelection
   }
 
   var canSelectCodexExecutable: Bool {
@@ -89,10 +89,13 @@ final class GaugeViewModel: ObservableObject {
   }
 
   var menuBarAccessibilityLabel: String {
-    guard let remaining = displayWindow?.remainingPercentage else {
+    guard let displaySelection else {
       return L10n.text("accessibility.menuBarUnavailable")
     }
-    return L10n.menuBarRemaining(Int(remaining.rounded()))
+    return L10n.menuBarRemaining(
+      Int(displaySelection.window.remainingPercentage.rounded()),
+      period: displaySelection.period
+    )
   }
 
   func startIfNeeded() {

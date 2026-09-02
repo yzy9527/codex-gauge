@@ -72,6 +72,12 @@ extension QuotaSnapshot {
     QuotaSnapshot(
       windows: [
         QuotaWindow(
+          id: "five-hour",
+          usedPercentage: 28 + usedDelta,
+          resetDate: now.addingTimeInterval(3 * 60 * 60 + 18 * 60),
+          windowDurationMinutes: 300
+        ),
+        QuotaWindow(
           id: "weekly",
           usedPercentage: 38 + usedDelta,
           resetDate: now.addingTimeInterval(5 * 24 * 60 * 60 + 3 * 60 * 60),

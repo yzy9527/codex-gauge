@@ -12,7 +12,7 @@
   English · <a href="README.zh-CN.md">简体中文</a>
 </p>
 
-Codex Gauge shows your remaining Codex quota, the regular reset time, and available usage-limit reset credits without requiring you to open Codex. The menu bar ring reflects the remaining percentage, while the popover provides the detailed status in your local time zone.
+Codex Gauge shows your 5-hour and weekly Codex quotas, their reset times, and available usage-limit reset credits without requiring you to open Codex. The menu bar prefers the 5-hour remaining percentage and automatically falls back to another available window, while the popover provides detailed status in your local time zone.
 
 > Codex Gauge is a community project and is not an official OpenAI product.
 
@@ -24,8 +24,9 @@ Codex Gauge shows your remaining Codex quota, the regular reset time, and availa
 
 ## Features
 
-- Displays the remaining Codex quota directly in the menu bar.
-- Shows the regular reset date, relative time remaining, and available reset credits.
+- Displays the 5-hour remaining quota directly in the menu bar, with an automatic fallback when that window is unavailable.
+- Shows both 5-hour and weekly percentages and reset times when Codex provides both windows.
+- Shows available reset credits and their expiration details.
 - Refreshes on launch, on demand, when Codex reports an update, and periodically in the background.
 - Keeps the most recent successful snapshot when a refresh temporarily fails.
 - Automatically locates Codex installed through `PATH`, Homebrew, Codex, or ChatGPT.

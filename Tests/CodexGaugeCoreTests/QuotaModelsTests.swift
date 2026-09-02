@@ -26,7 +26,7 @@ final class QuotaModelsTests: XCTestCase {
     )
   }
 
-  func testDisplayWindowUsesTheTightestLimit() {
+  func testDisplayWindowPrefersFiveHourWindow() {
     let now = Date(timeIntervalSince1970: 1_000)
     let snapshot = QuotaSnapshot(
       windows: [
@@ -47,10 +47,30 @@ final class QuotaModelsTests: XCTestCase {
       lastUpdated: now
     )
 
-    XCTAssertEqual(snapshot.displayWindow?.id, "secondary")
+    XCTAssertEqual(snapshot.displayWindow?.id, "primary")
+    XCTAssertEqual(snapshot.displaySelection?.period, .fiveHour)
   }
 
-  func testDisplayWindowBreaksTiesWithEarlierReset() {
+  func testDisplayWindowFallsBackToWeeklyWindow() {
+    let now = Date(timeIntervalSince1970: 1_000)
+    let snapshot = QuotaSnapshot(
+      windows: [
+        QuotaWindow(
+          id: "weekly",
+          usedPercentage: 60,
+          resetDate: now.addingTimeInterval(20_000),
+          windowDurationMinutes: 10_080
+        )
+      ],
+      resetCredits: nil,
+      lastUpdated: now
+    )
+
+    XCTAssertEqual(snapshot.displayWindow?.id, "weekly")
+    XCTAssertEqual(snapshot.displaySelection?.period, .weekly)
+  }
+
+  func testDisplayWindowFallsBackToTheTightestUnknownWindow() {
     let now = Date(timeIntervalSince1970: 1_000)
     let snapshot = QuotaSnapshot(
       windows: [
@@ -58,13 +78,13 @@ final class QuotaModelsTests: XCTestCase {
           id: "later",
           usedPercentage: 50,
           resetDate: now.addingTimeInterval(20_000),
-          windowDurationMinutes: 300
+          windowDurationMinutes: 60
         ),
         QuotaWindow(
           id: "earlier",
           usedPercentage: 50,
           resetDate: now.addingTimeInterval(10_000),
-          windowDurationMinutes: 10_080
+          windowDurationMinutes: 120
         ),
       ],
       resetCredits: nil,
@@ -72,6 +92,33 @@ final class QuotaModelsTests: XCTestCase {
     )
 
     XCTAssertEqual(snapshot.displayWindow?.id, "earlier")
+    XCTAssertEqual(snapshot.displaySelection?.period, .unknown)
+  }
+
+  func testWindowPeriodUsesDurationInsteadOfProtocolPosition() {
+    let now = Date(timeIntervalSince1970: 1_000)
+    let fiveHour = QuotaWindow(
+      id: "secondary",
+      usedPercentage: 10,
+      resetDate: now,
+      windowDurationMinutes: 300
+    )
+    let weekly = QuotaWindow(
+      id: "primary",
+      usedPercentage: 20,
+      resetDate: now,
+      windowDurationMinutes: 10_080
+    )
+    let unknown = QuotaWindow(
+      id: "future",
+      usedPercentage: 30,
+      resetDate: now,
+      windowDurationMinutes: 1_440
+    )
+
+    XCTAssertEqual(fiveHour.period, .fiveHour)
+    XCTAssertEqual(weekly.period, .weekly)
+    XCTAssertEqual(unknown.period, .unknown)
   }
 
   func testResetCreditCountIsClampedAndMissingDetailsAreTracked() {

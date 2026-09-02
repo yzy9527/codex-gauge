@@ -154,26 +154,71 @@ enum L10n {
     )
   }
 
-  static func remainingQuotaAccessibility(
-    _ percentage: Int,
+  static func remainingQuotaTitle(
+    for period: QuotaWindowPeriod,
     locale: Locale = .autoupdatingCurrent
   ) -> String {
-    localized(
-      "accessibility.remainingQuota",
-      defaultValue: "Remaining quota: \(percentage)%",
-      locale: locale
-    )
+    let key =
+      switch period {
+      case .fiveHour: "gauge.fiveHourRemainingQuota"
+      case .weekly: "gauge.weeklyRemainingQuota"
+      case .unknown: "gauge.remainingQuota"
+      }
+    return text(key, locale: locale)
+  }
+
+  static func remainingQuotaAccessibility(
+    _ percentage: Int,
+    period: QuotaWindowPeriod = .unknown,
+    locale: Locale = .autoupdatingCurrent
+  ) -> String {
+    switch period {
+    case .fiveHour:
+      localized(
+        "accessibility.fiveHourRemainingQuota",
+        defaultValue: "5-hour quota remaining: \(percentage)%",
+        locale: locale
+      )
+    case .weekly:
+      localized(
+        "accessibility.weeklyRemainingQuota",
+        defaultValue: "Weekly quota remaining: \(percentage)%",
+        locale: locale
+      )
+    case .unknown:
+      localized(
+        "accessibility.remainingQuota",
+        defaultValue: "Remaining quota: \(percentage)%",
+        locale: locale
+      )
+    }
   }
 
   static func menuBarRemaining(
     _ percentage: Int,
+    period: QuotaWindowPeriod = .unknown,
     locale: Locale = .autoupdatingCurrent
   ) -> String {
-    localized(
-      "accessibility.menuBarRemaining",
-      defaultValue: "Codex Gauge, \(percentage)% remaining",
-      locale: locale
-    )
+    switch period {
+    case .fiveHour:
+      localized(
+        "accessibility.menuBarFiveHourRemaining",
+        defaultValue: "Codex Gauge, 5-hour quota \(percentage)% remaining",
+        locale: locale
+      )
+    case .weekly:
+      localized(
+        "accessibility.menuBarWeeklyRemaining",
+        defaultValue: "Codex Gauge, weekly quota \(percentage)% remaining",
+        locale: locale
+      )
+    case .unknown:
+      localized(
+        "accessibility.menuBarRemaining",
+        defaultValue: "Codex Gauge, \(percentage)% remaining",
+        locale: locale
+      )
+    }
   }
 
   private static func bundle(for locale: Locale) -> Bundle {
