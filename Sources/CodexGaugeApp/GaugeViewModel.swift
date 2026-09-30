@@ -86,7 +86,7 @@ final class GaugeViewModel: ObservableObject {
 
   var canSelectCodexExecutable: Bool {
     guard case .unsupported(let issue, _) = state else { return false }
-    return issue == .executableNotFound
+    return issue == .executableNotFound || issue == .launchFailed
   }
 
   var menuBarAccessibilityLabel: String {

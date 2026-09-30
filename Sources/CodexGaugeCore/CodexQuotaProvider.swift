@@ -27,14 +27,24 @@ public enum CodexExecutableResolver {
         "/usr/local/bin/codex",
         "/Applications/Codex.app/Contents/Resources/codex",
         "/Applications/ChatGPT.app/Contents/Resources/codex",
+        "/Applications/Codex.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+        "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
       ]
     )
 
     return
       candidates
       .map { NSString(string: $0).expandingTildeInPath }
-      .first { FileManager.default.isExecutableFile(atPath: $0) }
+      .first { isValidExecutable(at: URL(fileURLWithPath: $0)) }
       .map(URL.init(fileURLWithPath:))
+  }
+
+  public static func isValidExecutable(at url: URL) -> Bool {
+    let fileManager = FileManager.default
+    var isDirectory: ObjCBool = false
+    return fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory)
+      && !isDirectory.boolValue
+      && fileManager.isExecutableFile(atPath: url.path)
   }
 }
 
@@ -532,7 +542,7 @@ public final class CodexQuotaProvider: QuotaProvider {
   }
 
   public func selectCodexExecutable(at url: URL) async throws {
-    guard FileManager.default.isExecutableFile(atPath: url.path) else {
+    guard CodexExecutableResolver.isValidExecutable(at: url) else {
       throw QuotaProviderConfigurationError.invalidExecutable
     }
 

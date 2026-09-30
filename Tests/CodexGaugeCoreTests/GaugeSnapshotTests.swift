@@ -56,6 +56,12 @@ final class GaugeSnapshotTests: XCTestCase {
       )
     )
 
+    let launchFailure = GaugeViewModel(
+      provider: MockQuotaProvider(
+        initialState: .unsupported(issue: .launchFailed, previous: nil)
+      )
+    )
+    XCTAssertTrue(launchFailure.canSelectCodexExecutable)
     XCTAssertTrue(selectable.canSelectCodexExecutable)
     XCTAssertFalse(unsupportedVersion.canSelectCodexExecutable)
   }

@@ -163,6 +163,29 @@ final class CodexQuotaProviderTests: XCTestCase {
     }
   }
 
+  func testResolverSkipsSavedDirectoryAndFindsExecutableOnPath() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let executable = directory.appendingPathComponent("codex")
+    try Data("#!/bin/sh\nexit 0\n".utf8).write(to: executable)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+    let suiteName = "CodexGaugeResolverTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+    defaults.set(directory.path, forKey: "CodexGauge.codexExecutablePath")
+
+    XCTAssertFalse(CodexExecutableResolver.isValidExecutable(at: directory))
+    XCTAssertEqual(
+      CodexExecutableResolver.resolve(environment: ["PATH": directory.path], defaults: defaults),
+      executable
+    )
+    try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: executable.path)
+    XCTAssertFalse(CodexExecutableResolver.isValidExecutable(at: executable))
+    XCTAssertFalse(CodexExecutableResolver.isValidExecutable(at: directory.appendingPathComponent("missing")))
+  }
+
   func testExecutableResolverUsesPathWithoutEmbeddingAccountData() {
     let executable = CodexExecutableResolver.resolve(
       environment: ["PATH": "/path/that/does/not/exist"],
