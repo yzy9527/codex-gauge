@@ -232,6 +232,27 @@ final class CodexQuotaProviderTests: XCTestCase {
     }
   }
 
+  func testPeerExitDuringHandshakeDoesNotTerminateApplication() async throws {
+    let fixture = try AppServerFixture(
+      onInitialize: #"print qq({"id":$id,"result":{}}\n); exit 1;"#,
+      onRead: "exit 1;"
+    )
+    defer { fixture.remove() }
+    for _ in 0..<10 {
+      let client = fixture.client()
+      do {
+        _ = try await client.readRateLimits()
+        XCTFail("Expected an interrupted connection")
+      } catch {
+        guard case CodexAppServerError.processExited = error else {
+          await client.shutdown()
+          return XCTFail("Unexpected error: \(error)")
+        }
+      }
+      await client.shutdown()
+    }
+  }
+
   @MainActor
   func testTransportClassifiesMethodMissingAndSignedOut() async throws {
     for (code, message, expected) in [

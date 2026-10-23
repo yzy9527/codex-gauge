@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 enum CodexAppServerError: Error {
@@ -108,6 +109,12 @@ actor CodexAppServerClient {
     let outputPipe = Pipe()
     let errorPipe = Pipe()
 
+    // A peer can exit between checking its state and writing. Report EPIPE as
+    // a transport failure instead of letting SIGPIPE terminate the whole app.
+    guard fcntl(inputPipe.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1) != -1 else {
+      throw CodexAppServerError.launchFailed
+    }
+
     process.executableURL = executableURL
     process.arguments = ["app-server", "--stdio"]
     process.standardInput = inputPipe
@@ -198,7 +205,12 @@ actor CodexAppServerClient {
     guard let inputPipe else {
       throw CodexAppServerError.processExited
     }
-    try inputPipe.fileHandleForWriting.write(contentsOf: encodedLine(message))
+    let data = try encodedLine(message)
+    do {
+      try inputPipe.fileHandleForWriting.write(contentsOf: data)
+    } catch {
+      throw CodexAppServerError.processExited
+    }
   }
 
   private func encodedLine(_ object: [String: Any]) throws -> Data {
