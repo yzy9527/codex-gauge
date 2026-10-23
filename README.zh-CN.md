@@ -65,13 +65,13 @@ app-server 的额度接口仍是实验性接口，未来 Codex 版本可能调�
 将 DMG 和对应的 `.sha256` 文件下载到同一目录，然后运行：
 
 ```sh
-shasum -a 256 -c CodexGauge-0.1.0-arm64.dmg.sha256
+shasum -a 256 -c CodexGauge-1.0.0-arm64.dmg.sha256
 ```
 
 公开仓库的 Release 还包含 GitHub 构建来源证明。已安装 GitHub CLI 时可以运行：
 
 ```sh
-gh attestation verify CodexGauge-0.1.0-arm64.dmg \
+gh attestation verify CodexGauge-1.0.0-arm64.dmg \
   -R yzy9527/codex-gauge
 ```
 
@@ -99,7 +99,7 @@ swift test
 ## 构建 DMG
 
 ```sh
-./scripts/build-release.sh 0.1.0
+./scripts/build-release.sh 1.0.0
 ```
 
 产物默认写入 `dist/`。未设置 `CODESIGN_IDENTITY` 时，App 使用 ad-hoc 签名，DMG 不会提交 Apple 公证。
@@ -118,8 +118,8 @@ xcrun swift \
 推送带说明的语义化版本标签后，`.github/workflows/release.yml` 会自动运行：
 
 ```sh
-git tag -a v0.1.0 -m "Codex Gauge v0.1.0"
-git push origin v0.1.0
+git tag -a v1.0.0 -m "Codex Gauge v1.0.0"
+git push origin v1.0.0
 ```
 
 GitHub Actions 会运行测试，构建并校验采用 ad-hoc 签名的 `arm64` DMG，生成 SHA-256，然后将两个文件发布到 GitHub Releases；公开仓库还会生成构建来源证明。该流程使用 Actions 自动提供的 `GITHUB_TOKEN`，不需要配置 Apple 签名或公证 Secrets。

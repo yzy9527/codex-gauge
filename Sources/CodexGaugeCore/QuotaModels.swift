@@ -146,6 +146,7 @@ public enum QuotaProviderIssue: Equatable, Sendable {
   case timeout
   case launchFailed
   case connectionInterrupted
+  case automaticRefreshPaused
   case incompatibleResponse
   case remoteFailure
   case unknown

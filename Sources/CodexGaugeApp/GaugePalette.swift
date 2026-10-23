@@ -9,14 +9,16 @@ enum GaugePalette {
   static let orange = Color(red: 231 / 255, green: 154 / 255, blue: 24 / 255)
   static let red = Color(red: 223 / 255, green: 76 / 255, blue: 76 / 255)
 
+  static let blue = Color(red: 0.04, green: 0.48, blue: 1)
+  static let canvas = Color(red: 0.96, green: 0.97, blue: 0.985)
+  static let cardRadius: CGFloat = 11
+  static let panelWidth: CGFloat = 326
+
   static func quotaColor(for remainingPercentage: Double) -> Color {
     switch remainingPercentage {
-    case 50...:
-      green
-    case 20..<50:
-      orange
-    default:
-      red
+    case 60...: green
+    case 20..<60: orange
+    default: red
     }
   }
 }

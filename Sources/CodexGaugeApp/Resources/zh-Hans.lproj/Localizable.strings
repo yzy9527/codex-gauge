@@ -52,3 +52,17 @@
 "status.updatedAt" = "更新于 %@";
 "status.updating" = "正在更新…";
 "status.unavailable" = "暂不可用";
+"recovery.fiveHour" = "5 小时额度已恢复";
+"recovery.weekly" = "一周额度已恢复";
+"recovery.body" = "剩余额度已恢复至 100%。";
+"recovery.notifications" = "额度恢复通知";
+"recovery.denied" = "通知未获授权";
+"recovery.settings" = "前往设置";
+"recovery.unavailable" = "请运行安装后的应用以使用通知。";
+"recovery.permissionError" = "无法请求通知权限，请重试。";
+"recovery.sendError" = "通知发送失败。";
+"recovery.settingsError" = "请前往系统设置 → 通知 → Codex Gauge。";
+"app.subtitle" = "Codex 使用额度监控";
+"recovery.subtitle" = "当额度恢复时发送系统通知";
+"recovery.settingsAccessibility" = "打开系统通知设置";
+"error.automaticRefreshPaused" = "Codex 连续异常退出，已暂停自动刷新。点击刷新可重试。";

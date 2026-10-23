@@ -3,7 +3,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${1:-0.1.0}"
+VERSION="${1:-1.0.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
 OUTPUT_DIR="${OUTPUT_DIR:-${PROJECT_ROOT}/dist}"
 DMG_NAME="CodexGauge-${VERSION}-arm64.dmg"
@@ -11,7 +11,7 @@ DMG_PATH="${OUTPUT_DIR}/${DMG_NAME}"
 CHECKSUM_PATH="${DMG_PATH}.sha256"
 
 if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-  echo "版本号必须采用语义化格式，例如 0.1.0" >&2
+  echo "版本号必须采用语义化格式，例如 1.0.0" >&2
   exit 2
 fi
 

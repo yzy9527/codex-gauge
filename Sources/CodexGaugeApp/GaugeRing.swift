@@ -15,52 +15,45 @@ struct GaugeRing: View {
   }
 
   var body: some View {
+    let color = GaugePalette.quotaColor(for: remainingPercentage)
     ZStack {
       Circle()
-        .stroke(GaugePalette.track, lineWidth: 8)
-        .padding(14)
-
+        .fill(RadialGradient(colors: [color.opacity(0.07), .clear], center: .center,
+          startRadius: 15, endRadius: 82))
+        .padding(12)
+      Circle()
+        .stroke(GaugePalette.track, lineWidth: 10)
+        .padding(12)
       Circle()
         .trim(from: 0, to: progress)
-        .stroke(
-          GaugePalette.quotaColor(for: remainingPercentage),
-          style: StrokeStyle(lineWidth: 8, lineCap: .round)
-        )
+        .stroke(color.gradient, style: StrokeStyle(lineWidth: 10, lineCap: .round))
         .rotationEffect(.degrees(-90))
-        .padding(14)
-        .animation(
-          reduceMotion ? nil : .snappy(duration: 0.55, extraBounce: 0),
-          value: progress
-        )
+        .padding(12)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.55, extraBounce: 0), value: progress)
 
-      VStack(spacing: -2) {
-        HStack(alignment: .firstTextBaseline, spacing: 2) {
+      VStack(spacing: 5) {
+        HStack(alignment: .firstTextBaseline, spacing: 3) {
           Text("\(Int(remainingPercentage.rounded()))")
-            .font(.system(size: 48, weight: .semibold, design: .rounded))
+            .font(.system(size: 43, weight: .bold, design: .rounded))
             .monospacedDigit()
+            .foregroundStyle(GaugePalette.ink)
           Text("%")
-            .font(.system(size: 17, weight: .semibold, design: .rounded))
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundStyle(GaugePalette.secondaryInk)
         }
-        .foregroundStyle(GaugePalette.ink)
+        Text(verbatim: isLoading
+          ? L10n.text("gauge.calibrating", locale: locale)
+          : L10n.remainingQuotaTitle(for: period, locale: locale))
+          .font(.system(size: 11, weight: .medium))
+          .foregroundStyle(GaugePalette.secondaryInk)
 
-        Text(
-          verbatim: isLoading
-            ? L10n.text("gauge.calibrating", locale: locale)
-            : L10n.remainingQuotaTitle(for: period, locale: locale)
-        )
-        .font(.system(size: 12, weight: .medium))
-        .foregroundStyle(GaugePalette.secondaryInk)
       }
     }
     .frame(width: 166, height: 166)
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel(
-      L10n.remainingQuotaAccessibility(
-        Int(remainingPercentage.rounded()),
-        period: period,
-        locale: locale
-      )
-    )
+    .accessibilityLabel(L10n.remainingQuotaAccessibility(
+      Int(remainingPercentage.rounded()), period: period, locale: locale
+    ))
   }
 }
 

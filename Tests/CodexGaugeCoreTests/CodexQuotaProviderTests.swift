@@ -157,10 +157,142 @@ final class CodexQuotaProviderTests: XCTestCase {
     )
 
     XCTAssertThrowsError(try CodexQuotaMapper.snapshot(from: response)) { error in
-      guard case CodexQuotaMappingError.missingQuotaWindow = error else {
+      guard case CodexQuotaMappingError.invalidResponse = error else {
         return XCTFail("Unexpected mapping error: \(error)")
       }
     }
+  }
+
+  func testRejectsMalformedWindowEvenWhenOtherWindowIsValid() throws {
+    for slot in ["primary", "secondary"] {
+      for resetField in ["", #", "resetsAt": null"#, #", "resetsAt": "invalid""#] {
+        let other = slot == "primary" ? "secondary" : "primary"
+        let response = Data("""
+          {"rateLimits": {
+            "\(slot)": {"usedPercent": 95, "windowDurationMins": 300\(resetField)},
+            "\(other)": {"usedPercent": 20, "windowDurationMins": 10080, "resetsAt": 6000}
+          }}
+          """.utf8)
+        XCTAssertThrowsError(try CodexQuotaMapper.snapshot(from: response)) { error in
+          guard case CodexQuotaMappingError.invalidResponse = error else {
+            return XCTFail("Unexpected mapping error: \(error)")
+          }
+        }
+      }
+    }
+  }
+
+  func testAbsentWindowStillAllowsWeeklySnapshot() throws {
+    for slot in ["primary", "secondary"] {
+      let other = slot == "primary" ? "secondary" : "primary"
+      for absentField in ["", ", \"\(other)\": null"] {
+        let response = Data("""
+          {"rateLimits": {
+            "\(slot)": {"usedPercent": 20, "windowDurationMins": 10080, "resetsAt": 6000}
+            \(absentField)
+          }}
+          """.utf8)
+        let snapshot = try CodexQuotaMapper.snapshot(from: response)
+        XCTAssertEqual(snapshot.windows.count, 1)
+        XCTAssertEqual(snapshot.displaySelection?.period, .weekly)
+        XCTAssertEqual(snapshot.displayWindow?.remainingPercentage, 80)
+      }
+    }
+  }
+
+  @MainActor
+  func testTransportHandshakeAndMalformedRefreshPreservesSnapshot() async throws {
+    let fixture = try AppServerFixture(onRead: """
+      if (++$reads == 1) { print qq({"id":$id,"result":\(AppServerFixture.validResult)}\\n); }
+      else { print qq({"id":$id,"result":{"rateLimits":{"primary":{"usedPercent":95,"windowDurationMins":300},"secondary":{"usedPercent":20,"windowDurationMins":10080,"resetsAt":6000}}}}\\n); }
+      """)
+    defer { fixture.remove() }
+    let provider = CodexQuotaProvider(client: fixture.client())
+    await provider.refresh()
+    let previous = try XCTUnwrap(provider.currentState.snapshot)
+    XCTAssertEqual(previous.fiveHourWindow?.remainingPercentage, 5)
+    XCTAssertEqual(previous.weeklyWindow?.remainingPercentage, 80)
+    await provider.refresh()
+    XCTAssertEqual(provider.currentState, .failed(issue: .incompatibleResponse, previous: previous))
+    await provider.shutdown()
+  }
+
+  @MainActor
+  func testTransportInitializationAndReadTimeouts() async throws {
+    for duringInitialization in [true, false] {
+      let fixture = try AppServerFixture(
+        onInitialize: duringInitialization ? "sleep 60;" : nil,
+        onRead: "sleep 60;"
+      )
+      defer { fixture.remove() }
+      let provider = CodexQuotaProvider(client: fixture.client(timeout: .milliseconds(100)))
+      await provider.refresh()
+      XCTAssertEqual(provider.currentState, .failed(issue: .timeout, previous: nil))
+      await provider.shutdown()
+    }
+  }
+
+  @MainActor
+  func testTransportClassifiesMethodMissingAndSignedOut() async throws {
+    for (code, message, expected) in [
+      (-32601, "Method not found", QuotaProviderState.unsupported(issue: .methodUnavailable, previous: nil)),
+      (-32000, "Unauthorized", QuotaProviderState.signedOut(previous: nil)),
+    ] {
+      let fixture = try AppServerFixture(onRead:
+        "print qq({\"id\":$id,\"error\":{\"code\":\(code),\"message\":\"\(message)\"}}\\n);")
+      defer { fixture.remove() }
+      let provider = CodexQuotaProvider(client: fixture.client())
+      await provider.refresh()
+      XCTAssertEqual(provider.currentState, expected)
+      await provider.shutdown()
+    }
+  }
+
+  @MainActor
+  func testRepeatedExitsPauseAutomaticRestartsAndManualRefreshRecovers() async throws {
+    let fixture = try AppServerFixture(onRead: """
+      if ($launch <= 3) { exit 1; }
+      print qq({"id":$id,"result":\(AppServerFixture.validResult)}\\n);
+      """)
+    defer { fixture.remove() }
+    let provider = CodexQuotaProvider(client: fixture.client(), automaticRefreshInterval: .milliseconds(30))
+    await provider.refresh()
+    for _ in 0..<100 {
+      if case .failed(issue: .automaticRefreshPaused, _) = provider.currentState { break }
+      try await Task.sleep(for: .milliseconds(20))
+    }
+    XCTAssertEqual(provider.currentState, .failed(issue: .automaticRefreshPaused, previous: nil))
+    try await Task.sleep(for: .milliseconds(120))
+    XCTAssertEqual(try fixture.launchCount(), 3)
+    await provider.refresh()
+    XCTAssertNotNil(provider.currentState.snapshot)
+    XCTAssertEqual(try fixture.launchCount(), 4)
+    await provider.shutdown()
+    try await Task.sleep(for: .milliseconds(120))
+    XCTAssertEqual(try fixture.launchCount(), 4)
+  }
+
+  @MainActor
+  func testIdleProcessExitPreservesSnapshotAndPausesAfterThreeExits() async throws {
+    let fixture = try AppServerFixture(onRead: """
+      print qq({"id":$id,"result":\(AppServerFixture.validResult)}\\n);
+      select(undef, undef, undef, 0.02);
+      exit 1;
+      """)
+    defer { fixture.remove() }
+    let provider = CodexQuotaProvider(client: fixture.client(), automaticRefreshInterval: .milliseconds(70))
+    await provider.refresh()
+    for _ in 0..<150 {
+      if case .failed(issue: .automaticRefreshPaused, _) = provider.currentState { break }
+      try await Task.sleep(for: .milliseconds(20))
+    }
+    guard case .failed(issue: .automaticRefreshPaused, let previous) = provider.currentState else {
+      await provider.shutdown()
+      return XCTFail("Expected automatic refresh to pause")
+    }
+    XCTAssertEqual(previous?.fiveHourWindow?.remainingPercentage, 5)
+    XCTAssertEqual(try fixture.launchCount(), 3)
+    await provider.shutdown()
   }
 
   func testResolverSkipsSavedDirectoryAndFindsExecutableOnPath() throws {
@@ -195,4 +327,58 @@ final class CodexQuotaProviderTests: XCTestCase {
     XCTAssertTrue(
       executable == nil || FileManager.default.isExecutableFile(atPath: executable!.path))
   }
+}
+
+// A local stdio peer with fictional data; never resolves the user's Codex installation.
+private struct AppServerFixture {
+  static let validResult = #"{"rateLimits":{"primary":{"usedPercent":95,"windowDurationMins":300,"resetsAt":3000},"secondary":{"usedPercent":20,"windowDurationMins":10080,"resetsAt":6000}}}"#
+  let directory: URL
+  let executable: URL
+
+  init(onInitialize: String? = nil, onRead: String) throws {
+    directory = FileManager.default.temporaryDirectory.appendingPathComponent("gauge-peer-" + UUID().uuidString)
+    executable = directory.appendingPathComponent("codex")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let script = """
+      #!/bin/sh
+      export LC_ALL=C
+      exec /usr/bin/perl -x "$0" "$@"
+      #!perl
+      use strict;
+      use warnings;
+      $| = 1;
+      my $counter = '\(directory.appendingPathComponent("launches").path)';
+      my $launch = 0;
+      if (open(my $in, '<', $counter)) { $launch = <$in>; close($in); }
+      open(my $out, '>', $counter) or die;
+      ++$launch;
+      print {$out} $launch;
+      close($out);
+      my $initialized = 0;
+      my $reads = 0;
+      while (my $line = <STDIN>) {
+        my ($id) = $line =~ /"id"\\s*:\\s*(\\d+)/;
+        if ($line =~ /"method"\\s*:\\s*"initialize"/) {
+          \(onInitialize ?? #"print qq({"id":$id,"result":{}}\n);"#)
+        } elsif ($line =~ /"method"\\s*:\\s*"initialized"/) {
+          $initialized = 1;
+        } elsif (defined $id) {
+          die 'missing initialized notification' unless $initialized;
+          \(onRead)
+        }
+      }
+      """
+    try Data(script.utf8).write(to: executable)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+  }
+
+  func client(timeout: Duration = .seconds(2)) -> CodexAppServerClient {
+    CodexAppServerClient(initializationTimeout: timeout, rateLimitsTimeout: timeout, executableURL: executable)
+  }
+
+  func launchCount() throws -> Int {
+    Int(try String(contentsOf: directory.appendingPathComponent("launches"), encoding: .utf8)) ?? 0
+  }
+
+  func remove() { try? FileManager.default.removeItem(at: directory) }
 }

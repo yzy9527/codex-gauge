@@ -246,6 +246,7 @@ extension QuotaProviderIssue {
     case .timeout: "error.timeout"
     case .launchFailed: "error.launchFailed"
     case .connectionInterrupted: "error.connectionInterrupted"
+    case .automaticRefreshPaused: "error.automaticRefreshPaused"
     case .incompatibleResponse: "error.incompatibleResponse"
     case .remoteFailure: "error.remoteFailure"
     case .unknown: "error.unknown"

@@ -4,9 +4,10 @@ import SwiftUI
 
 struct GaugePopoverView: View {
   @ObservedObject var viewModel: GaugeViewModel
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.locale) private var locale
   @State private var isRefreshHovered = false
+  @State private var windowReference = PopoverWindowReference()
+  @Environment(\.dismiss) private var dismiss
 
   var body: some View {
     VStack(spacing: 0) {
@@ -22,50 +23,61 @@ struct GaugePopoverView: View {
 
       footer
     }
-    .frame(width: 326)
-    .background(GaugePalette.paper)
+    .frame(width: GaugePalette.panelWidth)
+    .background(LinearGradient(colors: [GaugePalette.paper, GaugePalette.canvas], startPoint: .topLeading, endPoint: .bottomTrailing))
+    .background(PopoverWindowReader(reference: windowReference).frame(width: 0, height: 0))
     .preferredColorScheme(.light)
+    .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+      Task { await viewModel.refreshNotificationAuthorization() }
+    }
     .task {
       viewModel.startIfNeeded()
+      await viewModel.refreshNotificationAuthorization()
     }
   }
 
   private var header: some View {
     HStack(alignment: .center) {
-      HStack(spacing: 7) {
-        Text("CODEX-GAUGE")
-          .font(.system(size: 11, weight: .bold, design: .monospaced))
+      HStack(spacing: 9) {
+        Image(systemName: "waveform")
+          .font(.system(size: 18, weight: .semibold))
+          .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 3) {
+          Text("CODEX–GAUGE")
+            .font(.system(size: 12, weight: .bold))
+          Text(L10n.text("app.subtitle", locale: locale))
+            .font(.system(size: 10))
+            .foregroundStyle(GaugePalette.secondaryInk)
+        }
+      }
+      Spacer(minLength: 8)
+
+      HStack(spacing: 4) {
+        Text(lastUpdatedDescription)
+          .font(.system(size: 10))
+          .foregroundStyle(GaugePalette.secondaryInk)
+          .lineLimit(2)
+          .multilineTextAlignment(.trailing)
+          .fixedSize(horizontal: false, vertical: true)
+
+        Button {
+          viewModel.refresh()
+        } label: {
+          RefreshIcon(isLoading: viewModel.state.isLoading)
+            .frame(width: 24, height: 28)
+        }
+        .buttonStyle(QuietIconButtonStyle(isHovered: isRefreshHovered))
+        .focusEffectDisabled()
+        .onHover { isRefreshHovered = $0 }
+        .disabled(viewModel.state.isLoading)
+        .help(L10n.text("action.refreshQuota", locale: locale))
+        .accessibilityLabel(L10n.text("action.refreshQuota", locale: locale))
       }
 
-      Spacer()
-
-      Text(lastUpdatedDescription)
-        .font(.system(size: 10.5, weight: .regular, design: .monospaced))
-        .foregroundStyle(GaugePalette.secondaryInk)
-        .lineLimit(1)
-
-      Button {
-        viewModel.refresh()
-      } label: {
-        Image(systemName: "arrow.clockwise")
-          .font(.system(size: 12, weight: .semibold))
-          .frame(width: 28, height: 28)
-          .rotationEffect(.degrees(viewModel.state.isLoading ? 180 : 0))
-          .animation(
-            reduceMotion ? nil : .easeInOut(duration: 0.35),
-            value: viewModel.state.isLoading
-          )
-      }
-      .buttonStyle(QuietIconButtonStyle(isHovered: isRefreshHovered))
-      .focusEffectDisabled()
-      .onHover { isRefreshHovered = $0 }
-      .disabled(viewModel.state.isLoading)
-      .help(L10n.text("action.refreshQuota", locale: locale))
-      .accessibilityLabel(L10n.text("action.refreshQuota", locale: locale))
     }
     .foregroundStyle(GaugePalette.ink)
-    .padding(.horizontal, 20)
-    .padding(.top, 17)
+    .padding(.horizontal, 12)
+    .padding(.top, 12)
   }
 
   private func quotaContent(
@@ -73,6 +85,22 @@ struct GaugePopoverView: View {
     displaySelection: QuotaDisplaySelection
   ) -> some View {
     let displayWindow = displaySelection.window
+    let hasWeekly = displaySelection.period == .fiveHour && snapshot.weeklyWindow != nil
+    let creditRows = (snapshot.resetCredits?.displayCredits.count ?? 0)
+      + ((snapshot.resetCredits?.unavailableDetailCount ?? 0) > 0 ? 1 : 0)
+    let detailsHeight = CGFloat(3 + creditRows + (hasWeekly ? 3 : 0)) * 33
+      + (hasWeekly ? 42 : 18)
+    // Keep recovery messages and actions visible by shrinking the scrollable details.
+    let recoveryHeight: CGFloat = switch viewModel.state {
+    case .signedOut, .unsupported, .unavailable, .failed:
+      viewModel.canSelectCodexExecutable ? 80 : 48
+    case .idle, .loading, .available:
+      0
+    }
+    let maximumDetailsHeight = max(100, min(
+      220 - recoveryHeight,
+      (NSScreen.main?.visibleFrame.height ?? 800) - 400 - recoveryHeight
+    ))
 
     return VStack(spacing: 0) {
       GaugeRing(
@@ -80,37 +108,47 @@ struct GaugePopoverView: View {
         period: displaySelection.period,
         isLoading: viewModel.state.isLoading
       )
-      .padding(.top, 11)
-      .padding(.bottom, 13)
+      .padding(.top, 8)
+      .padding(.bottom, 8)
 
-      VStack(spacing: 0) {
-        MetricRow(
-          label: L10n.text("metric.resetTime", locale: locale),
-          value: localDateTimeDescription(for: displayWindow.resetDate)
-        )
-        MetricRow(
-          label: L10n.text("metric.timeUntilReset", locale: locale),
-          value: relativeResetDescription(for: displayWindow.resetDate)
-        )
+      ScrollView {
+        VStack(spacing: 0) {
+          MetricRow(
+            icon: "clock", tint: GaugePalette.blue,
+            label: L10n.text("metric.resetTime", locale: locale),
+            value: localDateTimeDescription(for: displayWindow.resetDate)
+          )
+          Divider().overlay(GaugePalette.track)
+          MetricRow(
+            icon: "calendar", tint: GaugePalette.secondaryInk,
+            label: L10n.text("metric.timeUntilReset", locale: locale),
+            value: relativeResetDescription(for: displayWindow.resetDate)
+          )
 
-        if displaySelection.period == .fiveHour,
-          let weeklyWindow = snapshot.weeklyWindow
-        {
+          if displaySelection.period == .fiveHour,
+            let weeklyWindow = snapshot.weeklyWindow
+          {
+            Divider()
+              .overlay(GaugePalette.track)
+              .padding(.vertical, 4)
+
+            weeklyQuotaContent(weeklyWindow)
+          }
+
           Divider()
             .overlay(GaugePalette.track)
             .padding(.vertical, 4)
 
-          weeklyQuotaContent(weeklyWindow)
+          resetCreditsContent(snapshot.resetCredits)
         }
-
-        Divider()
-          .overlay(GaugePalette.track)
-          .padding(.vertical, 4)
-
-        resetCreditsContent(snapshot.resetCredits)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
       }
-      .padding(.horizontal, 20)
-      .padding(.bottom, 16)
+      .scrollBounceBehavior(.basedOnSize)
+      .frame(height: min(detailsHeight, maximumDetailsHeight))
+      .background(GaugePalette.paper.opacity(0.85), in: RoundedRectangle(cornerRadius: GaugePalette.cardRadius))
+      .padding(.horizontal, 10)
+      .padding(.bottom, 8)
 
       statusNotice
     }
@@ -119,6 +157,7 @@ struct GaugePopoverView: View {
   private func weeklyQuotaContent(_ window: QuotaWindow) -> some View {
     VStack(spacing: 0) {
       MetricRow(
+        icon: "chart.bar", tint: GaugePalette.secondaryInk,
         label: L10n.text("metric.weeklyQuota", locale: locale),
         value: "\(Int(window.remainingPercentage.rounded()))%",
         valueColor: GaugePalette.quotaColor(for: window.remainingPercentage)
@@ -128,10 +167,12 @@ struct GaugePopoverView: View {
         .padding(.vertical, 5)
 
       MetricRow(
+        icon: "clock", tint: GaugePalette.blue,
         label: L10n.text("metric.resetTime", locale: locale),
         value: localDateTimeDescription(for: window.resetDate)
       )
       MetricRow(
+        icon: "calendar", tint: GaugePalette.secondaryInk,
         label: L10n.text("metric.timeUntilReset", locale: locale),
         value: relativeResetDescription(for: window.resetDate)
       )
@@ -196,9 +237,13 @@ struct GaugePopoverView: View {
 
   private var footer: some View {
     VStack(spacing: 0) {
-      Divider()
-        .overlay(GaugePalette.track)
-
+      if viewModel.canSelectCodexExecutable, viewModel.snapshot != nil {
+        Button(L10n.text("action.selectCodexCLI", locale: locale)) {
+          viewModel.selectCodexExecutable()
+        }
+        .buttonStyle(SecondaryInstrumentButtonStyle())
+        .padding(.bottom, 8)
+      }
       if let actionMessage = viewModel.actionMessage {
         HStack(spacing: 7) {
           Image(systemName: "exclamationmark.circle")
@@ -211,19 +256,92 @@ struct GaugePopoverView: View {
         }
         .font(.system(size: 11, weight: .medium))
         .foregroundStyle(GaugePalette.red)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 12)
         .padding(.top, 10)
       }
 
-      HStack {
-        Button(L10n.text("action.openCodex", locale: locale)) {
-          Task {
-            await viewModel.openCodex()
+      VStack(alignment: .leading, spacing: 6) {
+        HStack(spacing: 7) {
+          MetricIcon(symbol: "bell", tint: GaugePalette.secondaryInk)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(L10n.text("recovery.notifications", locale: locale))
+              .font(.system(size: 11, weight: .semibold))
+              .foregroundStyle(GaugePalette.ink)
+            if viewModel.notificationAuthorization == .denied {
+              HStack(spacing: 4) {
+                Text(L10n.text("recovery.denied", locale: locale))
+                Text("·").accessibilityHidden(true)
+                Button {
+                  openNotificationSettings()
+                } label: {
+                  Text(L10n.text("recovery.settings", locale: locale) + " →")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(GaugePalette.blue)
+                .accessibilityLabel(L10n.text("recovery.settingsAccessibility", locale: locale))
+              }
+              .font(.system(size: 10))
+              .lineLimit(1)
+            } else if viewModel.notificationAuthorization == .unavailable {
+              Text(L10n.text("recovery.unavailable", locale: locale))
+                .font(.system(size: 10))
+                .fixedSize(horizontal: false, vertical: true)
+            } else {
+              Text(L10n.text("recovery.subtitle", locale: locale))
+                .font(.system(size: 10))
+            }
           }
+          Spacer(minLength: 4)
+          Toggle(L10n.text("recovery.notifications", locale: locale), isOn: Binding(
+            get: { viewModel.recoveryNotificationsActive },
+            set: { enabled in
+              Task {
+                await viewModel.refreshNotificationAuthorization()
+                if enabled && viewModel.notificationAuthorization == .denied {
+                  openNotificationSettings()
+                  return
+                }
+                await viewModel.setRecoveryNotificationsEnabled(enabled) {
+                  // Hide our window before macOS presents its authorization UI.
+                  windowReference.window?.orderOut(nil)
+                  dismiss()
+                }
+              }
+            }
+          ))
+          .labelsHidden()
+          .toggleStyle(.switch)
+          .controlSize(.small)
+          .tint(GaugePalette.blue)
+          .disabled(viewModel.isChangingNotificationPermission)
+        }
+
+        if let error = viewModel.notificationError {
+          Text(error)
+            .foregroundStyle(GaugePalette.red)
+            .padding(.leading, 32)
+        }
+      }
+      .font(.system(size: 11))
+      .foregroundStyle(GaugePalette.secondaryInk)
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(GaugePalette.paper.opacity(0.85), in: RoundedRectangle(cornerRadius: GaugePalette.cardRadius))
+      .overlay(RoundedRectangle(cornerRadius: GaugePalette.cardRadius).stroke(GaugePalette.track.opacity(0.7)))
+      .padding(.horizontal, 10)
+
+      HStack {
+        Button {
+          Task { await viewModel.openCodex() }
+        } label: {
+          Label(L10n.text("action.openCodex", locale: locale), systemImage: "arrow.up.forward.square")
+            .frame(width: 155, height: 31)
+            .background(GaugePalette.blue.opacity(0.09), in: RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
+        .focusEffectDisabled()
         .font(.system(size: 12, weight: .semibold))
-        .foregroundStyle(GaugePalette.ink)
+        .foregroundStyle(GaugePalette.blue)
 
         Spacer()
 
@@ -231,13 +349,20 @@ struct GaugePopoverView: View {
           viewModel.quit()
         }
         .buttonStyle(.plain)
-        .font(.system(size: 12, weight: .medium))
-        .foregroundStyle(GaugePalette.secondaryInk)
+        .focusEffectDisabled()
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(GaugePalette.red)
         .keyboardShortcut("q", modifiers: .command)
       }
-      .padding(.horizontal, 20)
-      .padding(.vertical, 15)
+      .padding(.horizontal, 12)
+      .padding(.vertical, 10)
     }
+  }
+
+  private func openNotificationSettings() {
+    windowReference.window?.orderOut(nil)
+    dismiss()
+    viewModel.openNotificationSettings()
   }
 
   private var emptyStateIcon: String {
@@ -274,12 +399,14 @@ struct GaugePopoverView: View {
   private func resetCreditsContent(_ summary: QuotaResetCredits?) -> some View {
     if let summary {
       MetricRow(
+        icon: "cylinder", tint: GaugePalette.secondaryInk,
         label: L10n.text("metric.availableResets", locale: locale),
         value: L10n.availableResetCount(summary.availableCount, locale: locale)
       )
 
       ForEach(Array(summary.displayCredits.enumerated()), id: \.offset) { index, credit in
         MetricRow(
+          icon: "hourglass", tint: GaugePalette.secondaryInk,
           label: L10n.resetExpirationLabel(index: index + 1, locale: locale),
           value: expirationDescription(for: credit.expirationDate)
         )
@@ -287,6 +414,7 @@ struct GaugePopoverView: View {
 
       if summary.unavailableDetailCount > 0 {
         MetricRow(
+          icon: "hourglass", tint: GaugePalette.secondaryInk,
           label: L10n.additionalResetCount(summary.unavailableDetailCount, locale: locale),
           value: L10n.text("reset.expirationUnavailable", locale: locale),
           valueColor: GaugePalette.secondaryInk
@@ -294,6 +422,7 @@ struct GaugePopoverView: View {
       }
     } else {
       MetricRow(
+        icon: "cylinder", tint: GaugePalette.secondaryInk,
         label: L10n.text("metric.availableResets", locale: locale),
         value: L10n.text("status.unavailable", locale: locale),
         valueColor: GaugePalette.secondaryInk
@@ -334,23 +463,41 @@ struct GaugePopoverView: View {
   }
 }
 
+private struct MetricIcon: View {
+  let symbol: String
+  let tint: Color
+
+  var body: some View {
+    Image(systemName: symbol)
+      .font(.system(size: 14, weight: .medium))
+      .foregroundStyle(tint)
+      .frame(width: 25, height: 25)
+      .accessibilityHidden(true)
+  }
+}
+
 private struct MetricRow: View {
+  let icon: String
+  let tint: Color
   let label: String
   let value: String
   var valueColor: Color = GaugePalette.ink
 
   var body: some View {
-    HStack(alignment: .firstTextBaseline) {
+    HStack(spacing: 7) {
+      MetricIcon(symbol: icon, tint: tint)
       Text(label)
-        .font(.system(size: 12))
+        .font(.system(size: 11, weight: .medium))
         .foregroundStyle(GaugePalette.secondaryInk)
-      Spacer()
+      Spacer(minLength: 6)
       Text(value)
-        .font(.system(size: 12, weight: .medium, design: .monospaced))
+        .font(.system(size: 11, weight: .semibold))
         .monospacedDigit()
         .foregroundStyle(valueColor)
+        .multilineTextAlignment(.trailing)
+        .fixedSize(horizontal: false, vertical: true)
     }
-    .frame(minHeight: 30)
+    .frame(minHeight: 33)
   }
 }
 
@@ -390,8 +537,32 @@ private struct InlineNotice: View {
     .font(.system(size: 11.5))
     .padding(11)
     .background(GaugePalette.orange.opacity(0.09))
-    .padding(.horizontal, 20)
+    .padding(.horizontal, 12)
     .padding(.bottom, 16)
+  }
+}
+
+private struct RefreshIcon: View {
+  let isLoading: Bool
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State private var rotationStartedAt = Date()
+
+  var body: some View {
+    TimelineView(.animation(paused: !isLoading || reduceMotion)) { context in
+      let elapsed = max(0, context.date.timeIntervalSince(rotationStartedAt))
+      Image(systemName: "arrow.clockwise")
+        .font(.system(size: 11, weight: .semibold))
+        .rotationEffect(.degrees(
+          isLoading && !reduceMotion
+            ? elapsed.truncatingRemainder(dividingBy: 1) * 360
+            : 0
+        ))
+    }
+    .onChange(of: isLoading, initial: true) { _, loading in
+      if loading {
+        rotationStartedAt = Date()
+      }
+    }
   }
 }
 
@@ -416,9 +587,9 @@ private struct QuietIconButtonStyle: ButtonStyle {
 private struct PrimaryInstrumentButtonStyle: ButtonStyle {
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
-      .font(.system(size: 12, weight: .semibold))
+      .font(.system(size: 11, weight: .semibold))
       .foregroundStyle(GaugePalette.paper)
-      .padding(.horizontal, 14)
+      .padding(.horizontal, 10)
       .padding(.vertical, 7)
       .background(
         Capsule()
@@ -430,9 +601,9 @@ private struct PrimaryInstrumentButtonStyle: ButtonStyle {
 private struct SecondaryInstrumentButtonStyle: ButtonStyle {
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
-      .font(.system(size: 12, weight: .semibold))
+      .font(.system(size: 11, weight: .semibold))
       .foregroundStyle(GaugePalette.ink)
-      .padding(.horizontal, 14)
+      .padding(.horizontal, 10)
       .padding(.vertical, 7)
       .background(
         Capsule()
@@ -442,5 +613,37 @@ private struct SecondaryInstrumentButtonStyle: ButtonStyle {
         Capsule()
           .stroke(GaugePalette.track, lineWidth: 1)
       )
+  }
+}
+
+// Capture only this popover's host, never another application window.
+@MainActor
+private final class PopoverWindowReference {
+  weak var window: NSWindow?
+}
+
+private struct PopoverWindowReader: NSViewRepresentable {
+  let reference: PopoverWindowReference
+
+  func makeNSView(context: Context) -> WindowReaderView {
+    WindowReaderView(reference: reference)
+  }
+
+  func updateNSView(_ nsView: WindowReaderView, context: Context) {}
+
+  final class WindowReaderView: NSView {
+    let reference: PopoverWindowReference
+
+    init(reference: PopoverWindowReference) {
+      self.reference = reference
+      super.init(frame: .zero)
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      reference.window = window
+    }
   }
 }

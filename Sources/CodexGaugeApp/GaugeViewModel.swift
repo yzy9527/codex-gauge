@@ -1,62 +1,23 @@
 import AppKit
 import CodexGaugeCore
 import Foundation
-
-@MainActor
-protocol CodexApplicationOpening: AnyObject {
-  func installedApplicationURL() -> URL?
-  func openApplication(at url: URL) async -> Bool
-}
-
-@MainActor
-final class WorkspaceCodexApplicationOpener: CodexApplicationOpening {
-  func installedApplicationURL() -> URL? {
-    let bundleIdentifiers = [
-      "com.openai.codex"
-    ]
-
-    return
-      bundleIdentifiers
-      .lazy
-      .compactMap(NSWorkspace.shared.urlForApplication(withBundleIdentifier:))
-      .first
-      ?? existingApplicationURL()
-  }
-
-  func openApplication(at url: URL) async -> Bool {
-    await WorkspaceApplicationLaunchRequest.openApplication(at: url)
-  }
-
-  private func existingApplicationURL() -> URL? {
-    let candidates = [
-      "/Applications/Codex.app",
-      NSString(string: "~/Applications/Codex.app").expandingTildeInPath,
-    ]
-    return
-      candidates
-      .map(URL.init(fileURLWithPath:))
-      .first { FileManager.default.fileExists(atPath: $0.path) }
-  }
-}
-
-private enum WorkspaceApplicationLaunchRequest {
-  static func openApplication(at url: URL) async -> Bool {
-    await withCheckedContinuation { continuation in
-      let configuration = NSWorkspace.OpenConfiguration()
-      NSWorkspace.shared.openApplication(
-        at: url,
-        configuration: configuration
-      ) { _, error in
-        continuation.resume(returning: error == nil)
-      }
-    }
-  }
-}
+import SwiftUI
 
 @MainActor
 final class GaugeViewModel: ObservableObject {
   @Published private(set) var state: QuotaProviderState
   @Published private(set) var actionMessage: String?
+
+  @Published private(set) var recoveryNotificationsEnabled: Bool
+  @Published private(set) var notificationAuthorization: RecoveryNotificationAuthorization = .notDetermined
+  @Published private(set) var isChangingNotificationPermission = false
+  @Published private(set) var notificationError: String?
+
+  private let preferences: UserDefaults
+  private let notifier: any RecoveryNotifying
+  private(set) var notificationTask: Task<Void, Never>?
+  private var lastSuccessfulSnapshot: QuotaSnapshot?
+  private let quotaPanelController = QuotaPanelController()
 
   private let provider: any QuotaProvider
   private let applicationOpener: any CodexApplicationOpening
@@ -65,14 +26,24 @@ final class GaugeViewModel: ObservableObject {
 
   init(
     provider: any QuotaProvider,
-    applicationOpener: any CodexApplicationOpening = WorkspaceCodexApplicationOpener()
+    applicationOpener: any CodexApplicationOpening = WorkspaceCodexApplicationOpener(),
+    notifier: any RecoveryNotifying = SystemRecoveryNotifier(),
+    preferences: UserDefaults = .standard
   ) {
+    self.preferences = preferences
+    self.notifier = notifier
+    recoveryNotificationsEnabled = preferences.bool(forKey: "recoveryNotificationsEnabled")
     self.provider = provider
     self.applicationOpener = applicationOpener
     state = provider.currentState
 
+    notifier.onOpen = { [weak self] in
+      guard let self else { return }
+      self.quotaPanelController.show(viewModel: self)
+    }
+
     provider.observeState { [weak self] state in
-      self?.state = state
+      self?.receive(state)
     }
   }
 
@@ -99,9 +70,109 @@ final class GaugeViewModel: ObservableObject {
     )
   }
 
+  var recoveryNotificationsActive: Bool {
+    recoveryNotificationsEnabled && notificationAuthorization == .authorized
+  }
+
+  func refreshNotificationAuthorization() async {
+    notificationAuthorization = await notifier.authorization()
+  }
+
+  func setRecoveryNotificationsEnabled(
+    _ enabled: Bool, beforeRequest: () -> Void = {}
+  ) async {
+    guard !isChangingNotificationPermission else { return }
+    notificationError = nil
+    if !enabled {
+      recoveryNotificationsEnabled = false
+      preferences.set(false, forKey: "recoveryNotificationsEnabled")
+      notificationTask?.cancel()
+      notifier.removePending()
+      return
+    }
+    isChangingNotificationPermission = true
+    defer { isChangingNotificationPermission = false }
+    await refreshNotificationAuthorization()
+    if notificationAuthorization == .notDetermined {
+      do {
+        beforeRequest()
+        _ = try await notifier.requestAuthorization()
+        await refreshNotificationAuthorization()
+      } catch {
+        notificationError = L10n.text("recovery.permissionError")
+        return
+      }
+    }
+    recoveryNotificationsEnabled = notificationAuthorization == .authorized
+    preferences.set(recoveryNotificationsEnabled, forKey: "recoveryNotificationsEnabled")
+  }
+
+  func openNotificationSettings() {
+    guard let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension"),
+      NSWorkspace.shared.open(url)
+    else {
+      notificationError = L10n.text("recovery.settingsError")
+      return
+    }
+  }
+
+  private func notifyRecovery(_ period: QuotaWindowPeriod) {
+    guard recoveryNotificationsEnabled else { return }
+    notificationTask?.cancel()
+    notificationTask = Task { [weak self] in
+      guard let self else { return }
+      await refreshNotificationAuthorization()
+      guard !Task.isCancelled, recoveryNotificationsEnabled,
+        notificationAuthorization == .authorized else { return }
+      do {
+        try await notifier.send(period: period)
+        if !Task.isCancelled { notificationError = nil }
+      } catch is CancellationError {
+        return
+      } catch {
+        guard !Task.isCancelled else { return }
+        notificationError = L10n.text("recovery.sendError")
+      }
+    }
+  }
+
+  private func receive(_ newState: QuotaProviderState) {
+    state = newState
+    switch newState {
+    case .signedOut, .idle:
+      lastSuccessfulSnapshot = nil
+      notificationTask?.cancel()
+      notifier.removePending()
+    case .available(let snapshot):
+      let previous = lastSuccessfulSnapshot
+      // Reject duplicate or out-of-order success events for recovery detection.
+      if let previous, snapshot.lastUpdated <= previous.lastUpdated { return }
+      lastSuccessfulSnapshot = snapshot
+      guard let previous else { return }
+      let pairs: [(QuotaWindow?, QuotaWindow?)] = [
+        (previous.fiveHourWindow, snapshot.fiveHourWindow),
+        (previous.weeklyWindow, snapshot.weeklyWindow),
+      ]
+      let restored = pairs.compactMap { old, new -> QuotaWindowPeriod? in
+        guard let old, let new,
+          old.remainingPercentage < 100, new.remainingPercentage == 100
+        else { return nil }
+        return new.period
+      }
+      if restored.contains(.weekly) {
+        notifyRecovery(.weekly)
+      } else if restored.contains(.fiveHour) {
+        notifyRecovery(.fiveHour)
+      }
+    case .loading, .unsupported, .unavailable, .failed:
+      break
+    }
+  }
+
   func startIfNeeded() {
     guard !hasStarted else { return }
     hasStarted = true
+    Task { await refreshNotificationAuthorization() }
     refresh()
   }
 
@@ -123,6 +194,7 @@ final class GaugeViewModel: ObservableObject {
       }
     }
   }
+
 
   func refresh() {
     Task {

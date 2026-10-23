@@ -65,13 +65,13 @@ Current releases use ad-hoc signing and are not notarized by Apple because the p
 Download the DMG and its `.sha256` file into the same directory, then run:
 
 ```sh
-shasum -a 256 -c CodexGauge-0.1.0-arm64.dmg.sha256
+shasum -a 256 -c CodexGauge-1.0.0-arm64.dmg.sha256
 ```
 
 Public-repository releases also include GitHub build provenance. With GitHub CLI installed:
 
 ```sh
-gh attestation verify CodexGauge-0.1.0-arm64.dmg \
+gh attestation verify CodexGauge-1.0.0-arm64.dmg \
   -R yzy9527/codex-gauge
 ```
 
@@ -99,7 +99,7 @@ swift test
 ## Build a DMG
 
 ```sh
-./scripts/build-release.sh 0.1.0
+./scripts/build-release.sh 1.0.0
 ```
 
 Artifacts are written to `dist/`. Without `CODESIGN_IDENTITY`, the app is signed ad-hoc and the DMG is not submitted to Apple for notarization.
@@ -118,8 +118,8 @@ xcrun swift \
 Pushing an annotated semantic-version tag triggers `.github/workflows/release.yml`:
 
 ```sh
-git tag -a v0.1.0 -m "Codex Gauge v0.1.0"
-git push origin v0.1.0
+git tag -a v1.0.0 -m "Codex Gauge v1.0.0"
+git push origin v1.0.0
 ```
 
 GitHub Actions runs the tests, builds and verifies the ad-hoc signed `arm64` DMG, generates a SHA-256 file, and publishes both files to GitHub Releases. Public repositories also receive a build-provenance attestation. This workflow uses the automatically provided `GITHUB_TOKEN` and requires no Apple signing or notarization secrets.

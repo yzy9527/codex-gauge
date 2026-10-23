@@ -52,3 +52,17 @@
 "status.updatedAt" = "Updated %@";
 "status.updating" = "Updating…";
 "status.unavailable" = "Unavailable";
+"recovery.fiveHour" = "5-hour quota restored";
+"recovery.weekly" = "Weekly quota restored";
+"recovery.body" = "Remaining quota is back to 100%.";
+"recovery.notifications" = "Quota recovery notifications";
+"recovery.denied" = "Not authorized";
+"recovery.settings" = "Settings";
+"recovery.unavailable" = "Run the installed app to use notifications.";
+"recovery.permissionError" = "Could not request notification permission. Please try again.";
+"recovery.sendError" = "Could not send the notification.";
+"recovery.settingsError" = "Open System Settings → Notifications → Codex Gauge.";
+"app.subtitle" = "Codex usage monitor";
+"recovery.subtitle" = "Notify when quota is restored";
+"recovery.settingsAccessibility" = "Open Notification Settings";
+"error.automaticRefreshPaused" = "Codex disconnected repeatedly. Automatic refresh is paused. Click Refresh to retry.";
